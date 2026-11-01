@@ -1,0 +1,27 @@
+<local:MacWindow x:Class="UnixLauncher.Views.AboutWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:local="clr-namespace:UnixLauncher.Views"
+        Title="" Width="320" SizeToContent="Height">
+    <StackPanel HorizontalAlignment="Center">
+        <ContentControl x:Name="Logo" HorizontalAlignment="Center" Margin="0,4,0,14"/>
+        <TextBlock x:Name="Product" FontSize="22" FontWeight="SemiBold" HorizontalAlignment="Center"/>
+        <TextBlock x:Name="Version" Foreground="{StaticResource SubText}" HorizontalAlignment="Center" Margin="0,2,0,16"/>
+        <Grid>
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
+            <Grid.RowDefinitions>
+                <RowDefinition/><RowDefinition/><RowDefinition/>
+            </Grid.RowDefinitions>
+            <TextBlock Text="Name" FontWeight="SemiBold" Margin="0,2,12,2"/>
+            <TextBlock x:Name="DeviceName" Grid.Column="1" Foreground="{StaticResource SubText}" Margin="0,2"/>
+            <TextBlock Text="Processor" Grid.Row="1" FontWeight="SemiBold" Margin="0,2,12,2"/>
+            <TextBlock x:Name="Cpu" Grid.Row="1" Grid.Column="1" Foreground="{StaticResource SubText}" TextWrapping="Wrap" Margin="0,2"/>
+            <TextBlock Text="Memory" Grid.Row="2" FontWeight="SemiBold" Margin="0,2,12,2"/>
+            <TextBlock x:Name="Memory" Grid.Row="2" Grid.Column="1" Foreground="{StaticResource SubText}" Margin="0,2"/>
+        </Grid>
+        <Button Content="More Info…" Style="{StaticResource FlatButton}" Background="{StaticResource CardBg}" HorizontalAlignment="Center" Margin="0,16,0,0" Click="MoreInfo_Click"/>
+    </StackPanel>
+</local:MacWindow>

@@ -1,0 +1,13 @@
+<Window x:Class="UnixLauncher.Views.TrafficLightOverlay"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        WindowStyle="None" AllowsTransparency="True" Background="Transparent"
+        ShowInTaskbar="False" Topmost="True" ShowActivated="False" ResizeMode="NoResize"
+        Width="64" Height="20" Title="Window Controls">
+    <!-- Background must be non-null so the gaps between dots still count as "hovering the group" -->
+    <StackPanel Orientation="Horizontal" VerticalAlignment="Center" HorizontalAlignment="Left" Background="#01000000" Height="20">
+        <Button Style="{StaticResource TrafficLight}" Background="#FF5F57" Content="×" ToolTip="Close" Click="Close_Click"/>
+        <Button Style="{StaticResource TrafficLight}" Background="#FEBC2E" Content="−" ToolTip="Minimise" Click="Min_Click"/>
+        <Button Style="{StaticResource TrafficLight}" Background="#28C840" Content="+" ToolTip="Zoom" Click="Zoom_Click"/>
+    </StackPanel>
+</Window>

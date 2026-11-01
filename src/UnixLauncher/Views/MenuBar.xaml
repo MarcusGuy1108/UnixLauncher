@@ -1,0 +1,30 @@
+<Window x:Class="UnixLauncher.Views.MenuBar"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        WindowStyle="None" AllowsTransparency="True" Background="{StaticResource BarBg}"
+        ShowInTaskbar="False" Topmost="True" ShowActivated="False" ResizeMode="NoResize"
+        FontFamily="{DynamicResource UiFont}" Height="26" Width="800" Title="Menu Bar">
+    <DockPanel LastChildFill="False" Margin="6,0">
+        <!-- Left: logo ("Apple") menu, then the active app's menu -->
+        <Button x:Name="LogoBtn" Style="{StaticResource BarButton}" Click="Logo_Click" ToolTip="Menu" Padding="10,0">
+            <!-- Fallback logo; replaced at runtime by icons/menu-logo.png if present -->
+            <Grid x:Name="LogoHost" Width="13" Height="13">
+                <UniformGrid Rows="2" Columns="2">
+                    <Rectangle Fill="{StaticResource Text}" Margin="0,0,1,1"/>
+                    <Rectangle Fill="{StaticResource Text}" Margin="1,0,0,1"/>
+                    <Rectangle Fill="{StaticResource Text}" Margin="0,1,1,0"/>
+                    <Rectangle Fill="{StaticResource Text}" Margin="1,1,0,0"/>
+                </UniformGrid>
+            </Grid>
+        </Button>
+        <Button x:Name="AppBtn" Style="{StaticResource BarButton}" Click="App_Click" FontWeight="Bold" Content="Desktop"/>
+
+        <!-- Right side, docked right-to-left like macOS: clock is outermost -->
+        <Button x:Name="ClockBtn" DockPanel.Dock="Right" Style="{StaticResource BarButton}" Click="Clock_Click" ToolTip="Notification Centre"/>
+        <Button x:Name="CcBtn" DockPanel.Dock="Right" Style="{StaticResource BarButton}" Click="ControlCentre_Click" ToolTip="Control Centre"/>
+        <Button x:Name="SearchBtn" DockPanel.Dock="Right" Style="{StaticResource BarButton}" Click="Search_Click" ToolTip="Spotlight (Alt+Space)"/>
+        <Button x:Name="WifiBtn" DockPanel.Dock="Right" Style="{StaticResource BarButton}" Click="ControlCentre_Click"/>
+        <Button x:Name="BatteryBtn" DockPanel.Dock="Right" Style="{StaticResource BarButton}" Click="ControlCentre_Click" Visibility="Collapsed"/>
+        <Button x:Name="FocusBtn" DockPanel.Dock="Right" Style="{StaticResource BarButton}" Click="ControlCentre_Click" ToolTip="Focus is on" Visibility="Collapsed"/>
+    </DockPanel>
+</Window>

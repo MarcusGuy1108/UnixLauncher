@@ -1,0 +1,34 @@
+<local:Popover x:Class="UnixLauncher.Views.Launchpad"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:local="clr-namespace:UnixLauncher.Views"
+        Title="Launchpad" Foreground="{StaticResource Text}" FontSize="13">
+    <Grid Background="#A0101012" MouseLeftButtonUp="Background_Click">
+        <DockPanel Margin="80,50,80,40">
+            <Border DockPanel.Dock="Top" HorizontalAlignment="Center" Width="280" CornerRadius="8" Background="#33FFFFFF" Padding="10,6" Margin="0,0,0,30">
+                <DockPanel>
+                    <ContentControl x:Name="SearchIcon" Margin="0,0,8,0" VerticalAlignment="Center"/>
+                    <TextBox x:Name="Query" Style="{StaticResource SearchBox}" FontSize="14" TextChanged="Query_Changed" PreviewKeyDown="Query_Keys"/>
+                </DockPanel>
+            </Border>
+            <ScrollViewer VerticalScrollBarVisibility="Hidden">
+                <ItemsControl x:Name="AppGrid">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate><WrapPanel HorizontalAlignment="Center"/></ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <Button Style="{StaticResource FlatButton}" Width="136" Height="132" Tag="{Binding}"
+                                    Click="App_Click" MouseRightButtonUp="App_RightClick" ToolTip="{Binding Name}">
+                                <StackPanel HorizontalAlignment="Center">
+                                    <Image Source="{Binding Icon}" Width="72" Height="72"/>
+                                    <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis" HorizontalAlignment="Center" Margin="0,8,0,0" MaxWidth="120"/>
+                                </StackPanel>
+                            </Button>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </ScrollViewer>
+        </DockPanel>
+    </Grid>
+</local:Popover>

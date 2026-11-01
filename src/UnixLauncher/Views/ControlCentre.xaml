@@ -1,0 +1,60 @@
+<local:Popover x:Class="UnixLauncher.Views.ControlCentre"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:local="clr-namespace:UnixLauncher.Views"
+        Width="336" SizeToContent="Height" Title="Control Centre" Foreground="{StaticResource Text}" FontSize="13">
+    <Border Background="{StaticResource PanelBg}" BorderBrush="{StaticResource Line}" BorderThickness="1" CornerRadius="16" Padding="10" Margin="8">
+        <StackPanel>
+            <!-- Tiles: left-click toggles, right-click opens the matching Windows settings page -->
+            <UniformGrid Columns="2" Rows="2">
+                <ToggleButton x:Name="WifiTile" Style="{StaticResource Tile}" Margin="0,0,5,5" Click="Wifi_Click"
+                              MouseRightButtonUp="OpenSettings" CommandParameter="ms-settings:network-wifi" ToolTip="Right-click for settings">
+                    <StackPanel><TextBlock Text="Wi-Fi" FontWeight="SemiBold"/><TextBlock x:Name="WifiSub" Foreground="{StaticResource SubText}" FontSize="11"/></StackPanel>
+                </ToggleButton>
+                <ToggleButton x:Name="FocusTile" Style="{StaticResource Tile}" Margin="5,0,0,5" Click="Focus_Click"
+                              MouseRightButtonUp="OpenSettings" CommandParameter="ms-settings:notifications" ToolTip="Right-click for settings">
+                    <StackPanel><TextBlock Text="Focus" FontWeight="SemiBold"/><TextBlock x:Name="FocusSub" Foreground="{StaticResource SubText}" FontSize="11"/></StackPanel>
+                </ToggleButton>
+                <ToggleButton x:Name="BtTile" Style="{StaticResource Tile}" Margin="0,5,5,0" Click="Bluetooth_Click"
+                              MouseRightButtonUp="OpenSettings" CommandParameter="ms-settings:bluetooth" ToolTip="Right-click for settings">
+                    <StackPanel><TextBlock Text="Bluetooth" FontWeight="SemiBold"/><TextBlock x:Name="BtSub" Foreground="{StaticResource SubText}" FontSize="11"/></StackPanel>
+                </ToggleButton>
+                <ToggleButton x:Name="DarkTile" Style="{StaticResource Tile}" Margin="5,5,0,0" Click="Dark_Click"
+                              MouseRightButtonUp="OpenSettings" CommandParameter="ms-settings:colors" ToolTip="Right-click for settings">
+                    <StackPanel><TextBlock Text="Dark Mode" FontWeight="SemiBold"/><TextBlock x:Name="DarkSub" Foreground="{StaticResource SubText}" FontSize="11"/></StackPanel>
+                </ToggleButton>
+            </UniformGrid>
+
+            <Border x:Name="DisplayCard" Background="{StaticResource CardBg}" CornerRadius="12" Padding="12,8,12,12" Margin="0,10,0,0">
+                <StackPanel>
+                    <TextBlock Text="Display" FontWeight="SemiBold" Margin="0,0,0,8"/>
+                    <Slider x:Name="BrightnessSlider" Style="{StaticResource MacSlider}"/>
+                </StackPanel>
+            </Border>
+
+            <Border x:Name="SoundCard" Background="{StaticResource CardBg}" CornerRadius="12" Padding="12,8,12,12" Margin="0,10,0,0">
+                <StackPanel>
+                    <TextBlock Text="Sound" FontWeight="SemiBold" Margin="0,0,0,8"/>
+                    <Slider x:Name="VolumeSlider" Style="{StaticResource MacSlider}"/>
+                </StackPanel>
+            </Border>
+
+            <Border x:Name="MediaCard" Background="{StaticResource CardBg}" CornerRadius="12" Padding="10" Margin="0,10,0,0" Visibility="Collapsed">
+                <DockPanel>
+                    <Border Width="44" Height="44" CornerRadius="6" Background="#33FFFFFF" ClipToBounds="True" DockPanel.Dock="Left" Margin="0,0,10,0">
+                        <Image x:Name="MediaArt" Stretch="UniformToFill"/>
+                    </Border>
+                    <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
+                        <Button x:Name="PrevBtn" Style="{StaticResource FlatButton}" Click="Prev_Click"/>
+                        <Button x:Name="PlayBtn" Style="{StaticResource FlatButton}" Click="Play_Click"/>
+                        <Button x:Name="NextBtn" Style="{StaticResource FlatButton}" Click="Next_Click"/>
+                    </StackPanel>
+                    <StackPanel VerticalAlignment="Center">
+                        <TextBlock x:Name="MediaTitle" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"/>
+                        <TextBlock x:Name="MediaArtist" Foreground="{StaticResource SubText}" TextTrimming="CharacterEllipsis"/>
+                    </StackPanel>
+                </DockPanel>
+            </Border>
+        </StackPanel>
+    </Border>
+</local:Popover>
