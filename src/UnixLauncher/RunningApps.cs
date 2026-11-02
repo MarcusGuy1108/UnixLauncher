@@ -70,6 +70,8 @@ static class WindowEvents
     public static event Action<IntPtr>? Foreground;
     /// <summary>The foreground window moved or resized.</summary>
     public static event Action<IntPtr>? Moved;
+    /// <summary>A window is being dragged or resized by the user (between EVENT_SYSTEM_MOVESIZESTART and END).</summary>
+    public static bool MovingOrSizing { get; private set; }
 
     static Native.WinEventProc? _proc; // keep the delegate alive: the hook calls it from native code
 
@@ -86,6 +88,10 @@ static class WindowEvents
         {
             if (idObject == 0 && hwnd == Native.GetForegroundWindow()) Moved?.Invoke(hwnd);
         }
-        else Foreground?.Invoke(Native.GetForegroundWindow());
+        else
+        {
+            if (evt is 0x000A or 0x000B) MovingOrSizing = evt == 0x000A; // MOVESIZESTART / MOVESIZEEND (inside the hooked range)
+            Foreground?.Invoke(Native.GetForegroundWindow());
+        }
     }
 }

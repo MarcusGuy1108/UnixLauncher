@@ -22,6 +22,8 @@ public partial class TrafficLightOverlay : Window
     readonly Window _cover;
     readonly Border _coverFill = new();
     readonly DispatcherTimer _resample = new() { Interval = TimeSpan.FromMilliseconds(300) };
+    // Windows opening over the title bar (flyouts, dialogs, other apps' popups) send us no event, so look again now and then.
+    readonly DispatcherTimer _recheck = new() { Interval = TimeSpan.FromMilliseconds(250) };
     (IntPtr hwnd, int w, int h) _sampledFor;
 
     public TrafficLightOverlay()
@@ -46,6 +48,8 @@ public partial class TrafficLightOverlay : Window
         // Title bars fade from inactive to active colour just after focus changes; sample again once it has settled.
         _resample.Tick += (_, _) => { _resample.Stop(); _sampledFor = default; Track(_target); };
 
+        _recheck.Tick += (_, _) => Track(Native.GetForegroundWindow());
+        _recheck.Start();
         WindowEvents.Foreground += Track;
         WindowEvents.Moved += Track;
         Settings.Changed += () => Track(Native.GetForegroundWindow());
@@ -69,14 +73,33 @@ public partial class TrafficLightOverlay : Window
             _sampledFor = (fg, buttons.Width, buttons.Height);
             if (SampleTitleBar(buttons) is { } c) Backing.Background = _coverFill.Background = new SolidColorBrush(c);
         }
+        // Never draw over something that is on top of the app (a flyout, a dialog, another window): the buttons belong under it.
+        var lights = new Native.RECT { Left = x, Top = y, Right = x + (int)(Width * s), Bottom = y + (int)(Height * s) };
+        if (Covered(fg, lights)) { Hide(); _cover.Hide(); return; }
         if (!IsVisible) Show();
         Native.SetWindowPos(_hwnd, Native.HWND_TOPMOST, x, y, 0, 0, Native.SWP_NOSIZE | Native.SWP_NOACTIVATE | Native.SWP_SHOWWINDOW);
-        PlaceCover(style, buttons);
+        PlaceCover(style, buttons, r, s);
     }
 
-    void PlaceCover(long style, Native.RECT b)
+    /// <summary>Is any window above <paramref name="target"/> overlapping <paramref name="area"/>? Our own and click-through windows don't count.</summary>
+    static bool Covered(IntPtr target, Native.RECT area)
+    {
+        for (var h = Native.GetWindow(target, 3); h != IntPtr.Zero; h = Native.GetWindow(h, 3)) // GW_HWNDPREV: next window up
+        {
+            if (!Native.IsWindowVisible(h) || Native.IsCloaked(h) || RunningApps.IsOwn(h) || (Native.ExStyle(h) & 0x20) != 0) continue; // WS_EX_TRANSPARENT
+            if (Native.GetWindowRect(h, out var r) && r.Left < area.Right && area.Left < r.Right && r.Top < area.Bottom && area.Top < r.Bottom) return true;
+        }
+        return false;
+    }
+
+    void PlaceCover(long style, Native.RECT b, Native.RECT frame, double scale)
     {
         if (!Settings.Current.HideCaptionButtons || (style & Native.WS_SYSMENU) == 0) { _cover.Hide(); return; } // no buttons to hide
+        // A cover trailing behind a window being dragged, or one placed from odd button bounds some apps report,
+        // lands on top of the app's content: only cover what is plainly the buttons in the top-right corner.
+        bool plausible = b.Height >= 16 * scale && b.Height <= 64 * scale && b.Width <= 46 * 4 * scale
+                      && Math.Abs(b.Top - frame.Top) <= 12 * scale && Math.Abs(b.Right - frame.Right) <= 16 * scale;
+        if (WindowEvents.MovingOrSizing || !plausible) { _cover.Hide(); return; }
         if (!_cover.IsVisible) _cover.Show();
         Native.SetWindowPos(UI.Hwnd(_cover), Native.HWND_TOPMOST, b.Left, b.Top, b.Width, b.Height, Native.SWP_NOACTIVATE | Native.SWP_SHOWWINDOW);
     }
