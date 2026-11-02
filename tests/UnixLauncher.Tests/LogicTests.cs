@@ -113,3 +113,66 @@ public class MenuTextTests
     [InlineData("Tom && Jerry", "Tom & Jerry")]
     public void Cleans(string raw, string expected) => Assert.Equal(expected, MenuText.Clean(raw));
 }
+
+public class FinderLogicTests
+{
+    [Theory]
+    [InlineData(1, "1 byte")]
+    [InlineData(820, "820 bytes")]
+    [InlineData(1_234, "1.2 KB")]
+    [InlineData(999_999, "1 MB")]
+    [InlineData(34_000_000_000, "34 GB")]
+    public void Sizes(long bytes, string expected)
+    {
+        var old = System.Globalization.CultureInfo.CurrentCulture;
+        System.Globalization.CultureInfo.CurrentCulture = System.Globalization.CultureInfo.InvariantCulture;
+        try { Assert.Equal(expected, FileFormat.Size(bytes)); }
+        finally { System.Globalization.CultureInfo.CurrentCulture = old; }
+    }
+
+    [Fact]
+    public void Dates()
+    {
+        var now = new DateTime(2026, 11, 2, 15, 0, 0);
+        Assert.StartsWith("Today at ", FileFormat.Date(now.AddHours(-1), now));
+        Assert.StartsWith("Yesterday at ", FileFormat.Date(now.AddDays(-1), now));
+        Assert.Contains("2025", FileFormat.Date(new DateTime(2025, 3, 1), now));
+    }
+
+    [Fact]
+    public void NaturalOrder()
+    {
+        var names = new List<string> { "file10", "File2", "file1", "a", "file02b" };
+        names.Sort(NaturalComparer.Instance);
+        Assert.Equal(new[] { "a", "file1", "File2", "file02b", "file10" }, names);
+    }
+
+    [Theory]
+    [InlineData("report.pdf", null)]
+    [InlineData("", "empty")]
+    [InlineData("a:b", "characters")]
+    [InlineData("notes.", "dot")]
+    [InlineData("con.txt", "reserves")]
+    public void NameProblems(string name, string? fragment)
+    {
+        var p = FileNames.Problem(name);
+        if (fragment == null) Assert.Null(p); else Assert.Contains(fragment, p);
+    }
+
+    [Fact]
+    public void UniqueAndCopyNames()
+    {
+        var taken = new HashSet<string> { "untitled folder", "report.pdf", "report copy.pdf" };
+        Assert.Equal("untitled folder 2", FileNames.Unique("untitled folder", taken.Contains, false));
+        Assert.Equal("report copy 2.pdf", FileNames.CopyName("report.pdf", false, taken.Contains));
+        Assert.Equal("v1.2 copy", FileNames.CopyName("v1.2", true, taken.Contains)); // folders keep their dots
+    }
+
+    [Fact]
+    public void Inside()
+    {
+        Assert.True(FileNames.IsSameOrInside(@"C:\Users\me\Docs\a", @"C:\Users\me\docs\"));
+        Assert.True(FileNames.IsSameOrInside(@"C:\Users\me", @"C:\Users\me"));
+        Assert.False(FileNames.IsSameOrInside(@"C:\Users\meow", @"C:\Users\me"));
+    }
+}

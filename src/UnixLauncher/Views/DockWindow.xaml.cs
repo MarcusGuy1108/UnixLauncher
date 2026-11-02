@@ -154,7 +154,7 @@ public partial class DockWindow : Window
     {
         _windows = RunningApps.Enumerate();
         var pins = S.Pinned;
-        var entries = pins.Select(p => new Entry { Pin = p, Windows = _windows.Where(w => Matches(p, w)).ToList() }).ToList();
+        var entries = pins.Select(p => new Entry { Pin = p, Windows = PinWindows(p) }).ToList();
         entries.AddRange(_windows.Where(w => !pins.Any(p => Matches(p, w)))
                                  .GroupBy(w => w.Key)
                                  .Select(g => new Entry { Key = g.Key, Windows = g.ToList() }));
@@ -167,8 +167,12 @@ public partial class DockWindow : Window
 
     static bool Matches(DockPin p, WinInfo w) => AppMatch.Matches(p.Exe, p.Aumid, w.Exe, w.Aumid);
 
-    List<WinInfo> WindowsFor(Entry e) =>
-        e.Pin != null ? _windows.Where(w => Matches(e.Pin, w)).ToList() : _windows.Where(w => w.Key == e.Key).ToList();
+    List<WinInfo> WindowsFor(Entry e) => e.Pin != null ? PinWindows(e.Pin) : _windows.Where(w => w.Key == e.Key).ToList();
+
+    // Finder windows belong to this process, so they never appear in the running-apps scan.
+    List<WinInfo> PinWindows(DockPin p) => p.Launch == "::finder"
+        ? FinderWindow.All.Select(f => new WinInfo { Hwnd = UI.Hwnd(f), Title = f.Title }).ToList()
+        : _windows.Where(w => Matches(p, w)).ToList();
 
     void Rebuild(List<Entry> entries, int pinCount)
     {
@@ -206,6 +210,11 @@ public partial class DockWindow : Window
         ImageSource? icon;
         if (e.Trash) { name = "Recycle Bin"; icon = null; }
         else if (e.Pin is { Launch: "::launchpad" }) { name = e.Pin.Name; icon = Icons.Override("launchpad"); }
+        else if (e.Pin is { Launch: "::finder" })
+        {
+            name = e.Pin.Name; // no Finder artwork is shipped: icons/finder.png, else Explorer's icon
+            icon = Icons.Override("finder") ?? Icons.Shell(System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Windows), "explorer.exe"));
+        }
         else if (e.Pin != null) { name = e.Pin.Name; icon = Icons.ForApp(e.Pin.Name, e.Pin.Exe, e.Pin.Launch); }
         else { var w = e.Windows[0]; name = RunningApps.DisplayName(w); icon = Icons.ForApp(name, w.Exe, RunningApps.IconPath(w)); }
 
@@ -334,9 +343,15 @@ public partial class DockWindow : Window
 
         string? path = wins.FirstOrDefault()?.Exe ?? e.Pin?.Launch;
         if (path != null && (File.Exists(path) || Directory.Exists(path)))
-            items.Add(UI.Item("Show in File Explorer", () => Sys.ShowInExplorer(path)));
+            items.Add(UI.Item("Show in Finder", () => Sys.ShowInFinder(path)));
 
-        if (wins.Count > 0)
+        if (wins.Count > 0 && e.Pin?.Launch == "::finder")
+        {
+            items.Add(null);
+            items.Add(UI.Item("Hide", () => { foreach (var f in FinderWindow.All) f.WindowState = WindowState.Minimized; }));
+            items.Add(UI.Item("Quit", () => { foreach (var f in FinderWindow.All.ToList()) f.Close(); }));
+        }
+        else if (wins.Count > 0)
         {
             var (key, hwnd, title) = (wins[0].Key, wins[0].Hwnd, RunningApps.DisplayName(wins[0]));
             items.Add(null);

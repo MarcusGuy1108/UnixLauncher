@@ -14,6 +14,7 @@ Built with C# / WPF on .NET 10.
 |---|---|
 | **Menu bar** | Logo menu in Apple-menu order (About This PC, System Settings, App Store, Force Quit, Sleep / Restart / Shut Down, Lock, Log Out), with the launcher's own items at the end. Then the active app in bold, with About / Hide / Hide Others / Show All / Quit. Then **the app's own File / Edit / View… menus**, mirrored like the macOS global menu bar (classic Windows menu bars only), and a **Window** menu. On the right: battery, Wi-Fi, Spotlight, Control Centre, and a clock that opens Notification Centre. |
 | **Dock** | Pinned apps, folders and files, plus a dot under running apps. Running apps that aren't pinned get their own section, and the Recycle Bin sits at the end. **Left / Bottom / Right**, icon size, magnification and auto-hide. Drag icons to reorder them. Drop `.exe`, `.lnk` or folders from Explorer onto it to pin them. Clicking a running app brings it forward, as on macOS. Clicking a folder (e.g. Downloads) opens a **stack** of its newest items. Right-click an icon for its windows, Keep / Remove, Show in File Explorer, Hide, Quit and Force Quit. Right-click the shelf for dock options. |
+| **Finder** | A macOS-style file browser, first in the dock. Sidebar (Favourites, drives, Recycle Bin), back / forward, **Icons** and **List** views (sortable Name / Date Modified / Size / Kind columns), search in the current folder and below, path bar and status bar. **Space** for Quick Look (pictures, text, or a summary card). New Folder, Rename, Move to Recycle Bin, Get Info (Windows Properties), Open With, copy / cut / paste (works with Explorer's clipboard), drag and drop in, out and onto sidebar places. Copies and moves use Windows' own progress and "replace or skip" dialogs. Its menus show in the menu bar when it's in front, and also when the desktop is, as on macOS. Shortcuts: Ctrl+N new window, Ctrl+Shift+N new folder, F2 rename, Delete, Alt+Enter Get Info, Alt+←/→/↑ back / forward / enclosing folder, Ctrl+1/2 views, Ctrl+F search. |
 | **Window buttons** | The launcher's own windows have real traffic lights. A small overlay also adds working close / minimise / zoom dots to the title bar of whichever app is focused. Nothing is injected into other apps, and their own buttons stay put. |
 | **Control Centre** | macOS layout: Wi-Fi and Bluetooth card, Focus, Dark Mode and Screen Mirroring (Windows Cast) tiles, display brightness (laptops), volume, and Now Playing (any app using Windows media controls). Right-click a tile to open its Windows settings page. |
 | **Notification Centre** | Mirrors every app's Windows notifications, with dismiss and Clear All, plus a calendar widget. |
@@ -105,6 +106,10 @@ knowing:
 - Mirrored app menus only work for apps with a classic Windows menu bar (e.g. Notepad++, Registry
   Editor, older tools). Browsers, Store apps, Electron apps and Office draw their own, so they just
   get the Window menu. Those menus use Windows' own (dark) menu style.
+- Finder doesn't replace Explorer system-wide: other apps (and Win+E) still open folders in File Explorer.
+  It has no column or gallery view, no tabs, and no tags. Its search walks the disk (up to 1000 results)
+  rather than using the Windows Search index. "Show in File Explorer" in its right-click menu reaches
+  everything else Windows offers (Send to, Compress, etc.).
 - The launcher UI is dark-only.
 - Frosted glass behind the dock, panels and launcher windows needs **Windows 11 22H2 or later**,
   which provides the blur and rounded corners. On older Windows the menu bar and Launchpad are still

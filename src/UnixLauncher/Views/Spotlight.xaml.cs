@@ -37,7 +37,7 @@ public partial class Spotlight : Popover
         if (q.Length > 0)
         {
             string enc = Uri.EscapeDataString(q);
-            list.Add(new($"Search files for “{q}”", "File Explorer", null, () => Sys.Launch("search-ms:query=" + enc)));
+            list.Add(new($"Search in Finder for “{q}”", "Finder", null, () => FinderWindow.Open().StartSearch(q)));
             list.Add(new($"Search the web for “{q}”", "Browser", null, () => Sys.Launch("https://www.google.com/search?q=" + enc)));
         }
         Results.ItemsSource = list;

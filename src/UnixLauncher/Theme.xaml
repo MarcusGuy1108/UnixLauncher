@@ -154,17 +154,17 @@
                                 <DropShadowEffect BlurRadius="24" ShadowDepth="6" Opacity="0.5"/>
                             </Border.Effect>
                         </Border>
-                        <DockPanel>
-                            <Grid x:Name="PART_TitleBar" DockPanel.Dock="Top" Height="34" Background="Transparent">
-                                <StackPanel Orientation="Horizontal" Margin="14,0" VerticalAlignment="Center" Background="Transparent" HorizontalAlignment="Left">
-                                    <Button x:Name="PART_Close" Style="{StaticResource TrafficLight}" Background="#FF5F57" Content="×" ToolTip="Close"/>
-                                    <Button x:Name="PART_Min" Style="{StaticResource TrafficLight}" Background="#FEBC2E" Content="−" ToolTip="Minimise"/>
-                                    <Button x:Name="PART_Zoom" Style="{StaticResource TrafficLight}" Background="#28C840" Content="+" ToolTip="Zoom"/>
-                                </StackPanel>
-                                <TextBlock Text="{TemplateBinding Title}" FontWeight="SemiBold" HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                            </Grid>
-                            <ContentPresenter Margin="20,4,20,20"/>
-                        </DockPanel>
+                        <!-- Content first and the title bar on top, so a window with a unified toolbar (Finder)
+                             can run its content up beside the traffic lights. -->
+                        <ContentPresenter x:Name="PART_Content" Margin="20,38,20,20"/>
+                        <Grid x:Name="PART_TitleBar" VerticalAlignment="Top" Height="34" Background="Transparent">
+                            <StackPanel Orientation="Horizontal" Margin="14,0" VerticalAlignment="Center" Background="Transparent" HorizontalAlignment="Left">
+                                <Button x:Name="PART_Close" Style="{StaticResource TrafficLight}" Background="#FF5F57" Content="×" ToolTip="Close"/>
+                                <Button x:Name="PART_Min" Style="{StaticResource TrafficLight}" Background="#FEBC2E" Content="−" ToolTip="Minimise"/>
+                                <Button x:Name="PART_Zoom" Style="{StaticResource TrafficLight}" Background="#28C840" Content="+" ToolTip="Zoom"/>
+                            </StackPanel>
+                            <TextBlock x:Name="PART_Title" Text="{TemplateBinding Title}" FontWeight="SemiBold" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Grid>
                     </Grid>
                     <ControlTemplate.Triggers>
                         <Trigger Property="IsActive" Value="False">
@@ -270,6 +270,47 @@
                 </ControlTemplate>
             </Setter.Value>
         </Setter>
+    </Style>
+
+    <!-- Thin macOS-style scroll bar: just a rounded thumb; clicking the track still pages -->
+    <Style TargetType="ScrollBar">
+        <Setter Property="Width" Value="10"/>
+        <Setter Property="MinWidth" Value="10"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="ScrollBar">
+                    <Track x:Name="PART_Track" Orientation="{TemplateBinding Orientation}" IsDirectionReversed="True">
+                        <Track.DecreaseRepeatButton>
+                            <RepeatButton x:Name="Before" Command="ScrollBar.PageUpCommand" Opacity="0" Focusable="False"/>
+                        </Track.DecreaseRepeatButton>
+                        <Track.IncreaseRepeatButton>
+                            <RepeatButton x:Name="After" Command="ScrollBar.PageDownCommand" Opacity="0" Focusable="False"/>
+                        </Track.IncreaseRepeatButton>
+                        <Track.Thumb>
+                            <Thumb>
+                                <Thumb.Template>
+                                    <ControlTemplate TargetType="Thumb"><Border CornerRadius="4" Background="#59FFFFFF" Margin="2"/></ControlTemplate>
+                                </Thumb.Template>
+                            </Thumb>
+                        </Track.Thumb>
+                    </Track>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="Orientation" Value="Horizontal">
+                            <Setter TargetName="PART_Track" Property="IsDirectionReversed" Value="False"/>
+                            <Setter TargetName="Before" Property="Command" Value="ScrollBar.PageLeftCommand"/>
+                            <Setter TargetName="After" Property="Command" Value="ScrollBar.PageRightCommand"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+        <Style.Triggers>
+            <Trigger Property="Orientation" Value="Horizontal">
+                <Setter Property="Width" Value="Auto"/>
+                <Setter Property="MinWidth" Value="0"/>
+                <Setter Property="Height" Value="10"/>
+            </Trigger>
+        </Style.Triggers>
     </Style>
 
     <Style x:Key="SearchBox" TargetType="TextBox">

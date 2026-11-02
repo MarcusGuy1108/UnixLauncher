@@ -23,6 +23,7 @@ Segoe Fluent / MDL2 glyph.
 | `menu-logo`          | Far-left menu bar button (the "Apple menu" spot)   | Four-square logo       |
 | `about-logo`         | *About This PC* window                             | Laptop glyph           |
 | `launchpad`          | Launchpad item in the dock                         | Grid glyph             |
+| `finder`             | Finder item in the dock                            | File Explorer's icon   |
 | `trash`              | Recycle Bin in the dock, empty                     | Windows Recycle Bin    |
 | `trash-full`         | Recycle Bin in the dock, has items                 | Windows Recycle Bin    |
 | `search`             | Menu bar, Spotlight, Launchpad search              | Magnifier glyph        |

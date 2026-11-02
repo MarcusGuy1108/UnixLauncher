@@ -40,8 +40,8 @@ public class StackPopover : Popover
         if (grid.Children.Count == 0)
             grid.Children.Add(new TextBlock { Text = "No items", Foreground = (Brush)FindResource("SubText"), Margin = new Thickness(8, 4, 8, 12) });
 
-        var open = new Button { Content = "Open in File Explorer", Style = (Style)FindResource("FlatButton"), HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, 6, 0, 0) };
-        open.Click += (_, _) => { Close(); Sys.Launch(folder); };
+        var open = new Button { Content = "Open in Finder", Style = (Style)FindResource("FlatButton"), HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, 6, 0, 0) };
+        open.Click += (_, _) => { Close(); FinderWindow.Open(folder); };
 
         var stack = new StackPanel();
         stack.Children.Add(new TextBlock { Text = Path.GetFileName(folder.TrimEnd('\\', '/')), FontWeight = FontWeights.SemiBold, FontSize = 14, Margin = new Thickness(6, 0, 0, 8) });

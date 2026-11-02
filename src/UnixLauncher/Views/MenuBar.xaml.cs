@@ -106,13 +106,38 @@ public partial class MenuBar : Window
         if (fullscreen == IsVisible) { if (fullscreen) Hide(); else Show(); } // macOS hides bar + dock for full-screen apps
         App.Dock.SetHiddenForFullscreen(fullscreen);
 
-        if (fg == IntPtr.Zero || RunningApps.IsOwn(fg)) return;
-        if (Native.IsShellWindow(fg)) { _target = IntPtr.Zero; _targetInfo = null; AppBtn.Content = "Desktop"; BuildAppMenus(); return; }
-        if (fg == _target) return;
+        if (fg == IntPtr.Zero) return;
+        if (RunningApps.IsOwn(fg))
+        {
+            // Finder windows get Finder's menus; other launcher windows (Settings, Quick Look…) leave the bar as it was.
+            if (HwndSource.FromHwnd(fg)?.RootVisual is FinderWindow fw) ShowFinder(fw, fg);
+            return;
+        }
+        if (Native.IsShellWindow(fg)) { ShowFinder(null, IntPtr.Zero); return; } // on macOS the desktop belongs to Finder
+        if (fg == _target && !_finder) return;
+        _finder = false;
         _target = fg;
         _targetInfo = RunningApps.Describe(fg);
         AppBtn.Content = RunningApps.DisplayName(_targetInfo);
         BuildAppMenus();
+    }
+
+    bool _finder; // the bar is showing Finder (a Finder window or the desktop is in front)
+
+    void ShowFinder(FinderWindow? fw, IntPtr hwnd)
+    {
+        if (_finder && hwnd == _target && hwnd != IntPtr.Zero) return;
+        _finder = true;
+        _target = hwnd;
+        _targetInfo = null;
+        AppBtn.Content = "Finder";
+        AppMenus.Children.Clear();
+        foreach (var (title, make) in FinderWindow.MenuBarMenus(fw))
+        {
+            var btn = new Button { Style = (Style)FindResource("BarButton"), Content = title };
+            btn.Click += (_, _) => UI.ShowMenu(make(), btn);
+            AppMenus.Children.Add(btn);
+        }
     }
 
     // ---------- The app's own menus, mirrored like the macOS global menu bar ----------
@@ -231,9 +256,16 @@ public partial class MenuBar : Window
     // ---------- Active app menu ----------
     void App_Click(object sender, RoutedEventArgs e)
     {
-        if (_target == IntPtr.Zero || !Native.IsWindow(_target) || _targetInfo is not { } info)
+        if (_finder || _target == IntPtr.Zero || !Native.IsWindow(_target) || _targetInfo is not { } info)
         {
-            UI.ShowMenu(UI.Menu(UI.Item("New File Explorer Window", () => Sys.Launch("explorer.exe"))), AppBtn);
+            UI.ShowMenu(UI.Menu(
+                UI.Item("About Finder", () => MessageBox.Show("Finder\n\nThe macOS-style file browser that comes with UnixLauncher.", "About Finder")),
+                null,
+                UI.Item("Empty Recycle Bin…", Sys.EmptyTrash, enabled: Sys.TrashHasItems()),
+                null,
+                UI.Item("Hide Finder", () => { foreach (var f in FinderWindow.All) f.WindowState = WindowState.Minimized; }),
+                UI.Item("Hide Others", () => HideOthers("")),
+                UI.Item("Show All", ShowAll)), AppBtn);
             return;
         }
         string name = AppBtn.Content as string ?? "App";
@@ -245,7 +277,7 @@ public partial class MenuBar : Window
             UI.Item("Hide Others", () => HideOthers(info.Key)),
             UI.Item("Show All", ShowAll),
             null,
-            UI.Item("Show in File Explorer", () => Sys.ShowInExplorer(info.Exe!), enabled: hasExe),
+            UI.Item("Show in Finder", () => Sys.ShowInFinder(info.Exe!), enabled: hasExe),
             null,
             UI.Item($"Quit {name}", () => QuitApp(info.Key), keys: "Alt+F4")), AppBtn);
     }

@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Text.Json;
 
 namespace UnixLauncher;
@@ -26,16 +27,20 @@ public class Settings
     /// <summary>Exe names (e.g. "chrome.exe") whose title bar the traffic-light overlay should leave alone.</summary>
     public List<string> OverlayExclude { get; set; } = new();
     public bool DoNotDisturb { get; set; }
+    /// <summary>Finder's view: "Icons" or "List".</summary>
+    public string FinderView { get; set; } = "Icons";
     /// <summary>San Francisco can't be shipped; drop in any installed font family here.</summary>
     public string FontFamily { get; set; } = "Segoe UI Variable Text, Segoe UI";
     public List<DockPin> Pinned { get; set; } = new()
     {
-        new() { Name = "File Explorer", Launch = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Windows), "explorer.exe"), Exe = "explorer.exe" },
+        FinderPin(),
         new() { Name = "Launchpad", Launch = "::launchpad" },
         new() { Name = "Settings", Launch = @"shell:AppsFolder\windows.immersivecontrolpanel_cw5n1h2txyewy!microsoft.windows.immersivecontrolpanel",
                 Aumid = "windows.immersivecontrolpanel_cw5n1h2txyewy!microsoft.windows.immersivecontrolpanel" },
         new() { Name = "Downloads", Launch = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "Downloads") },
     };
+
+    static DockPin FinderPin() => new() { Name = "Finder", Launch = "::finder" };
 
     public static readonly string Dir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "UnixLauncher");
     static readonly string FilePath = Path.Combine(Dir, "settings.json");
@@ -46,7 +51,13 @@ public class Settings
 
     public static void Load()
     {
-        try { if (File.Exists(FilePath)) Current = JsonSerializer.Deserialize<Settings>(File.ReadAllText(FilePath)) ?? new(); }
+        try
+        {
+            if (File.Exists(FilePath)) Current = JsonSerializer.Deserialize<Settings>(File.ReadAllText(FilePath)) ?? new();
+            // Earlier versions pinned File Explorer by default; Finder takes that place. Pins the user made stay.
+            int i = Current.Pinned.FindIndex(p => p.Name == "File Explorer" && p.Exe == "explorer.exe");
+            if (i >= 0 && !Current.Pinned.Any(p => p.Launch == "::finder")) Current.Pinned[i] = FinderPin();
+        }
         catch (Exception ex)
         {
             App.Log(ex);
@@ -54,12 +65,13 @@ public class Settings
         }
     }
 
-    public static void Save()
+    /// <summary>notify: false for settings nobody else reacts to (saves rebuilding the dock and icons).</summary>
+    public static void Save(bool notify = true)
     {
         Directory.CreateDirectory(Dir);
         string tmp = FilePath + ".tmp";
         File.WriteAllText(tmp, JsonSerializer.Serialize(Current, Json));
         File.Move(tmp, FilePath, true); // atomic replace so a crash can't truncate settings
-        Changed?.Invoke();
+        if (notify) Changed?.Invoke();
     }
 }

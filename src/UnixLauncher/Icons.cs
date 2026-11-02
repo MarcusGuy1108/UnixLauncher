@@ -60,7 +60,7 @@ static class Icons
     /// The icon Explorer shows for a path, a folder, or shell:AppsFolder\&lt;AUMID&gt; (Store apps).
     /// Call on an STA thread.
     /// </summary>
-    public static ImageSource? ShellUncached(string parsingName)
+    public static ImageSource? ShellUncached(string parsingName, bool thumbnail = false, int size = 128)
     {
         try
         {
@@ -68,8 +68,8 @@ static class Icons
             Native.SHCreateItemFromParsingName(parsingName, IntPtr.Zero, ref iid, out var factory);
             try
             {
-                // 0x5 = SIIGBF_BIGGERSIZEOK | SIIGBF_ICONONLY (no file thumbnails)
-                if (factory.GetImage(new Native.SIZE { cx = 128, cy = 128 }, 0x5, out var hbmp) != 0) return null;
+                // SIIGBF_BIGGERSIZEOK, plus SIIGBF_ICONONLY unless a picture/document thumbnail is wanted
+                if (factory.GetImage(new Native.SIZE { cx = size, cy = size }, thumbnail ? 0x1 : 0x5, out var hbmp) != 0) return null;
                 try
                 {
                     var src = Imaging.CreateBitmapSourceFromHBitmap(hbmp, IntPtr.Zero, Int32Rect.Empty, BitmapSizeOptions.FromEmptyOptions());

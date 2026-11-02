@@ -158,6 +158,10 @@ public class MacWindow : Window
     Rect? _restore;
     readonly bool _glass;
 
+    /// <summary>Finder-style: no title bar row; content fills the window and draws its own toolbar beside the lights.</summary>
+    protected bool UnifiedToolbar { get; set; }
+    protected const double ToolbarHeight = 52;
+
     public MacWindow()
     {
         _glass = Glass.Setup(this);
@@ -175,6 +179,15 @@ public class MacWindow : Window
             bg.Effect = null;
             Glass.Style(bg);
         }
+        if (UnifiedToolbar && GetTemplateChild("PART_Content") is FrameworkElement content && GetTemplateChild("PART_TitleBar") is Panel titleBar)
+        {
+            content.Margin = new Thickness(0);
+            titleBar.Background = null;     // only the lights stay clickable; the window's toolbar handles dragging
+            titleBar.Height = ToolbarHeight;
+            if (GetTemplateChild("PART_Title") is UIElement title) title.Visibility = Visibility.Collapsed;
+            // Layered windows don't clip to the rounded corners (on glass, DWM does).
+            if (!_glass) content.SizeChanged += (_, e) => content.Clip = new RectangleGeometry(new Rect(e.NewSize), 10, 10);
+        }
         if (GetTemplateChild("PART_Close") is Button close) close.Click += (_, _) => Close();
         if (GetTemplateChild("PART_Min") is Button min) min.Click += (_, _) => WindowState = WindowState.Minimized;
         if (GetTemplateChild("PART_Zoom") is Button zoom) zoom.Click += (_, _) => Zoom();
@@ -182,8 +195,22 @@ public class MacWindow : Window
             bar.MouseLeftButtonDown += (_, e) => { if (e.ClickCount == 2) Zoom(); else DragMove(); };
     }
 
+    protected override void OnSourceInitialized(EventArgs e)
+    {
+        base.OnSourceInitialized(e);
+        if (ResizeMode is not (ResizeMode.CanResize or ResizeMode.CanResizeWithGrip)) return;
+        // Borderless windows have no resize frame of their own. On layered windows the edge sits 16px in (shadow margin).
+        var chrome = WindowChrome.GetWindowChrome(this);
+        if (chrome == null)
+            WindowChrome.SetWindowChrome(this, new WindowChrome
+            {
+                CaptionHeight = 0, GlassFrameThickness = new Thickness(0), UseAeroCaptionButtons = false, ResizeBorderThickness = new Thickness(20),
+            });
+        else chrome.ResizeBorderThickness = new Thickness(6);
+    }
+
     /// <summary>macOS "zoom": fill the work area (borderless WPF maximise would cover the menu bar and dock).</summary>
-    void Zoom()
+    public void Zoom()
     {
         if (_restore is { } r) { Left = r.Left; Top = r.Top; Width = r.Width; Height = r.Height; _restore = null; return; }
         _restore = new Rect(Left, Top, Width, Height);

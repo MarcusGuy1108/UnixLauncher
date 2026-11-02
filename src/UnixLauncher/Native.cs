@@ -97,6 +97,25 @@ static class Native
     [DllImport("user32.dll")] public static extern IntPtr GetSubMenu(IntPtr menu, int pos);
     [DllImport("user32.dll", CharSet = CharSet.Unicode)] public static extern int GetMenuString(IntPtr menu, uint item, StringBuilder sb, int max, uint flags);
     [DllImport("user32.dll")] public static extern int TrackPopupMenuEx(IntPtr menu, uint flags, int x, int y, IntPtr owner, IntPtr tpm);
+    [DllImport("shell32.dll", CharSet = CharSet.Unicode)] public static extern bool SHObjectProperties(IntPtr hwnd, uint type, string name, string? page);
+
+    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
+    public struct SHFILEINFO
+    {
+        public IntPtr hIcon; public int iIcon; public uint dwAttributes;
+        [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 260)] public string szDisplayName;
+        [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 80)] public string szTypeName;
+    }
+    [DllImport("shell32.dll", CharSet = CharSet.Unicode)] static extern IntPtr SHGetFileInfo(string path, uint attrs, ref SHFILEINFO info, uint size, uint flags);
+
+    /// <summary>Windows' name for a file type ("PDF Document"), from the extension alone (no disk access).</summary>
+    public static string TypeName(string fileName)
+    {
+        var fi = new SHFILEINFO();
+        SHGetFileInfo(fileName, 0x80, ref fi, (uint)Marshal.SizeOf<SHFILEINFO>(), 0x400 | 0x10); // FILE_ATTRIBUTE_NORMAL; SHGFI_TYPENAME | SHGFI_USEFILEATTRIBUTES
+        return fi.szTypeName ?? "";
+    }
+
     [DllImport("uxtheme.dll", EntryPoint = "#135")] static extern int SetPreferredAppMode(int mode);
     [DllImport("uxtheme.dll", EntryPoint = "#136")] static extern void FlushMenuThemes();
 

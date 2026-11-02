@@ -17,6 +17,7 @@ static class Sys
     public static void Launch(string target, string args = "")
     {
         if (target == "::launchpad") { App.Launchpad.Toggle(); return; }
+        if (target == "::finder") { Views.FinderWindow.Open(); return; }
         try
         {
             var psi = new ProcessStartInfo(target, args) { UseShellExecute = true };
@@ -31,6 +32,7 @@ static class Sys
     }
 
     public static void ShowInExplorer(string path) => Process.Start("explorer.exe", $"/select,\"{path}\"");
+    public static void ShowInFinder(string path) => Views.FinderWindow.Reveal(path);
 
     // ---------- Power ----------
     static bool Confirm(string what) =>
