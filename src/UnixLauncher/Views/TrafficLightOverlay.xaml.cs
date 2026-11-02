@@ -3,7 +3,9 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Runtime.InteropServices;
+using System.Threading.Tasks;
 using System.Windows;
+using System.Windows.Automation;
 using System.Windows.Controls;
 using System.Windows.Media;
 using System.Windows.Threading;
@@ -30,12 +32,34 @@ public partial class TrafficLightOverlay : Window
     bool _busy;      // the app draws something in that corner (a tab, its icon): buttons only on hover
     bool _revealed;  // the pill is showing
     bool _clickThrough;
+    // Apps that draw their own minimise/maximise/close (browsers, Settings, Discord) can't lose them natively:
+    // a cover in the title bar's colour goes exactly over them, where UI Automation says they are.
+    readonly Window _cover;
+    readonly System.Windows.Controls.Border _coverFill = new();
+    (IntPtr hwnd, int w, int h) _coverKey;
+    (int fromRight, int fromTop, int w, int h)? _coverAt; // relative to the window's top-right, so it follows moves
+    IntPtr _retryFor;
+    int _retries;
 
     public TrafficLightOverlay()
     {
         InitializeComponent();
         _hwnd = UI.Hwnd(this);
         Native.SetToolWindow(_hwnd, true);
+
+        _cover = new Window
+        {
+            WindowStyle = WindowStyle.None, AllowsTransparency = true, Background = Brushes.Transparent, Topmost = true,
+            ShowInTaskbar = false, ShowActivated = false, ResizeMode = ResizeMode.NoResize, Width = 1, Height = 1, Content = _coverFill,
+        };
+        Native.SetToolWindow(UI.Hwnd(_cover), true);
+        _cover.MouseLeftButtonDown += (_, e) => // it hides the buttons, never presses them: acts as plain title bar
+        {
+            IntPtr h = _coverKey.hwnd;
+            if (e.ClickCount == 2) { Native.SysCommand(h, Native.IsZoomed(h) ? Native.SC_RESTORE : Native.SC_MAXIMIZE); return; }
+            Native.ReleaseCapture();
+            Native.PostMessage(h, Native.WM_SYSCOMMAND, new IntPtr(0xF012), IntPtr.Zero);
+        };
         // Title bars change just after focus changes (and after their buttons go); look at the corner again once settled.
         _resample.Tick += (_, _) => { _resample.Stop(); _sampledFor = default; Track(Native.GetForegroundWindow()); };
 
@@ -52,11 +76,17 @@ public partial class TrafficLightOverlay : Window
         _recheck.Start();
         WindowEvents.Foreground += Track;
         WindowEvents.Moved += Track;
-        Settings.Changed += () => { NativeButtons.RestoreAll(); Track(Native.GetForegroundWindow()); }; // re-applied below as needed
+        Settings.Changed += () => { NativeButtons.RestoreAll(); _coverKey = default; Track(Native.GetForegroundWindow()); }; // re-applied as needed
+    }
+
+    void Track(IntPtr fg)
+    {
+        TrackLights(fg);
+        PlaceCover(fg);
     }
 
     /// <summary>Follow the focused window, or the background window whose corner the pointer is on.</summary>
-    void Track(IntPtr fg)
+    void TrackLights(IntPtr fg)
     {
         IntPtr w = _hoverWin != IntPtr.Zero && Native.IsWindow(_hoverWin) ? _hoverWin : fg;
         if (!Eligible(w)) { _target = IntPtr.Zero; Hide(); return; }
@@ -83,6 +113,90 @@ public partial class TrafficLightOverlay : Window
         if (Covered(w, area)) { Hide(); return; }
         if (!IsVisible) Show();
         Native.SetWindowPos(_hwnd, Native.HWND_TOPMOST, x, y, 0, 0, Native.SWP_NOSIZE | Native.SWP_NOACTIVATE | Native.SWP_SHOWWINDOW);
+    }
+
+    /// <summary>Cover the focused app's own caption buttons when it draws them itself.</summary>
+    void PlaceCover(IntPtr fg)
+    {
+        // Hidden while the window is dragged or resized: a cover trailing behind it is what looked broken.
+        if (!Settings.Current.HideCaptionButtons || !Eligible(fg) || WindowEvents.MovingOrSizing) { _cover.Hide(); return; }
+        var r = Native.FrameBounds(fg);
+        var key = (fg, r.Right - r.Left, r.Bottom - r.Top);
+        if (key != _coverKey) // new window or size: find its buttons again (off the UI thread; UI Automation can be slow)
+        {
+            _coverKey = key;
+            _coverAt = null;
+            if (fg != _retryFor) { _retryFor = fg; _retries = 0; }
+            _cover.Hide(); // out of the way, so asking "what's at this point" finds the app, not us
+            double s = UI.Scale(this);
+            Task.Run(() => FindButtons(fg, r, s)).ContinueWith(t => Dispatcher.BeginInvoke(() =>
+            {
+                if (_coverKey != key) return;
+                if (t.Result is not { } found)
+                {
+                    // Chromium only builds its accessibility tree once something asks: look again a few times.
+                    if (_retries++ < 3) Task.Delay(800).ContinueWith(_ => Dispatcher.BeginInvoke(() => { if (_coverKey == key) _coverKey = default; }));
+                    return;
+                }
+                _coverAt = found.at;
+                _coverFill.Background = new SolidColorBrush(found.colour);
+                PlaceCover(Native.GetForegroundWindow());
+            }));
+            return;
+        }
+        if (_coverAt is not { } a) { _cover.Hide(); return; }
+        var b = new Native.RECT { Left = r.Right - a.fromRight, Top = r.Top + a.fromTop };
+        b.Right = b.Left + a.w; b.Bottom = b.Top + a.h;
+        if (Covered(fg, b)) { _cover.Hide(); return; }
+        if (!_cover.IsVisible) _cover.Show();
+        Native.SetWindowPos(UI.Hwnd(_cover), Native.HWND_TOPMOST, b.Left, b.Top, a.w, a.h, Native.SWP_NOACTIVATE | Native.SWP_SHOWWINDOW);
+    }
+
+    /// <summary>
+    /// Where are the app's own minimise/maximise/close? Asks UI Automation what is at the close button's spot, then takes
+    /// the run of buttons beside it. Nothing found (classic apps, whose buttons are already gone natively): no cover.
+    /// </summary>
+    static ((int, int, int, int) at, Color colour)? FindButtons(IntPtr h, Native.RECT r, double s)
+    {
+        try
+        {
+            var close = AutomationElement.FromPoint(new Point(r.Right - 20 * s, r.Top + 12 * s));
+            Native.GetWindowThreadProcessId(h, out uint pid);
+            if (close == null || close.Current.ProcessId != pid || close.Current.ControlType != ControlType.Button) return null;
+            var parent = TreeWalker.ControlViewWalker.GetParent(close);
+            if (parent == null) return null;
+            var buttons = parent.FindAll(TreeScope.Children, new PropertyCondition(AutomationElement.ControlTypeProperty, ControlType.Button))
+                .Cast<AutomationElement>().Select(e => e.Current.BoundingRectangle).Where(b => !b.IsEmpty)
+                .OrderByDescending(b => b.Left).ToList();
+            var all = close.Current.BoundingRectangle;
+            foreach (var b in buttons) // the buttons touching the close button, leftwards (not e.g. a tab-search button further off)
+                if (b.Right >= all.Left - 2 * s && b.Right <= all.Left + 2 * s && Math.Abs(b.Top - all.Top) <= 4 * s) all.Union(b);
+            // Only something that is plainly the top-right caption buttons.
+            if (all.Width > 4 * 60 * s || all.Height < 16 * s || all.Height > 64 * s || r.Right - all.Right > 16 * s || all.Top - r.Top > 16 * s) return null;
+            if (SamplePixel((int)all.Left - (int)(4 * s), (int)(all.Top + all.Height / 2)) is not { } colour) return null;
+            return (((int)(r.Right - all.Left), (int)(all.Top - r.Top), (int)Math.Ceiling(all.Width), (int)Math.Ceiling(all.Height)), colour);
+        }
+        catch (Exception) { return null; } // the app went away or doesn't answer UI Automation
+    }
+
+    /// <summary>One screen pixel, leaving out layered windows (so our own cover never colours itself).</summary>
+    static Color? SamplePixel(int x, int y)
+    {
+        IntPtr screen = Native.GetDC(IntPtr.Zero), mem = Native.CreateCompatibleDC(screen), bmp = Native.CreateCompatibleBitmap(screen, 1, 1);
+        IntPtr old = Native.SelectObject(mem, bmp);
+        try
+        {
+            if (!Native.BitBlt(mem, 0, 0, 1, 1, screen, x, y, 0x00CC0020)) return null; // SRCCOPY
+            uint c = Native.GetPixel(mem, 0, 0);
+            return c == 0xFFFFFFFF ? null : Color.FromRgb((byte)c, (byte)(c >> 8), (byte)(c >> 16)); // COLORREF is 0x00BBGGRR
+        }
+        finally
+        {
+            Native.SelectObject(mem, old);
+            Native.DeleteObject(bmp);
+            Native.DeleteDC(mem);
+            Native.ReleaseDC(IntPtr.Zero, screen);
+        }
     }
 
     void HoverTick()

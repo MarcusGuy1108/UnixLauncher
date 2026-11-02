@@ -127,7 +127,7 @@ public partial class SettingsWindow : MacWindow
                     Switch(s.TrafficLightOverlay, v => Set(x => x.TrafficLightOverlay = v))),
                 Row("Hide Windows' own title bar buttons", "Takes minimise, maximise and close off apps' title bars, the way Windows does for " +
                     "windows without them (snapping and Win+↑ still work). Put back when you switch this off or quit. Apps that draw their " +
-                    "own buttons (browsers, Discord, Office) keep theirs.",
+                    "own (browsers, Settings, Discord) get a cover in the title bar's colour exactly over them instead.",
                     Switch(s.HideCaptionButtons, v => Set(x => x.HideCaptionButtons = v))),
                 Row("Leave these apps alone", "No round title bar buttons, Alt-as-⌘ or Windows-key changes in these apps, e.g. games you play in a " +
                     "window or apps that use Alt+click. Exe names, comma separated, e.g. chrome.exe, blender.exe",
