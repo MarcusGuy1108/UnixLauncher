@@ -10,6 +10,8 @@ namespace UnixLauncher.Views;
 /// <summary>Full-screen grid of every installed app, with search.</summary>
 public partial class Launchpad : Popover
 {
+    protected override bool UseGlass => false; // full-screen: the plain rectangular blur fits it
+
     public Launchpad()
     {
         InitializeComponent();

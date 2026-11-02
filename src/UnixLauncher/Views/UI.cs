@@ -5,8 +5,71 @@ using System.Windows.Controls.Primitives;
 using System.Windows.Input;
 using System.Windows.Interop;
 using System.Windows.Media;
+using System.Windows.Shell;
 
 namespace UnixLauncher.Views;
+
+/// <summary>
+/// Frosted-glass backgrounds. Windows 11 22H2+ draws real acrylic through DWM, which also supplies
+/// the rounded corners, border and shadow. Older Windows can't round a blurred window, so panels
+/// there stay solid (layered window, corners drawn by WPF).
+/// </summary>
+static class Glass
+{
+    public static readonly bool Supported = Environment.OSVersion.Version.Build >= 22621;
+
+    /// <summary>Call in the constructor, before the window is shown. Returns true if it gets acrylic.</summary>
+    public static bool Setup(Window w, bool allow = true)
+    {
+        w.Background = Brushes.Transparent;
+        if (!Supported || !allow)
+        {
+            w.WindowStyle = WindowStyle.None;
+            w.AllowsTransparency = true;
+            return false;
+        }
+        // A real (non-layered) window with its frame hidden: DWM only applies backdrops and rounding to those.
+        w.WindowStyle = WindowStyle.SingleBorderWindow;
+        w.AllowsTransparency = false;
+        WindowChrome.SetWindowChrome(w, new WindowChrome
+        {
+            CaptionHeight = 0, GlassFrameThickness = new Thickness(-1), ResizeBorderThickness = new Thickness(0), UseAeroCaptionButtons = false,
+        });
+        w.SourceInitialized += (_, _) => Enable(UI.Hwnd(w));
+        return true;
+    }
+
+    /// <summary>On a glass window, keep only a light tint on the panel; DWM draws corners, border and shadow.</summary>
+    public static void Style(Border panel)
+    {
+        panel.Background = (Brush)Application.Current.Resources["GlassTint"];
+        panel.BorderThickness = new Thickness(0);
+        panel.CornerRadius = new CornerRadius(0);
+    }
+
+    static void Enable(IntPtr hwnd)
+    {
+        var src = HwndSource.FromHwnd(hwnd)!;
+        src.CompositionTarget.BackgroundColor = Colors.Transparent;
+        int dark = 1, round = 2, acrylic = 3;
+        Native.DwmSetWindowAttribute(hwnd, 20, ref dark, sizeof(int));    // DWMWA_USE_IMMERSIVE_DARK_MODE
+        Native.DwmSetWindowAttribute(hwnd, 33, ref round, sizeof(int));   // DWMWA_WINDOW_CORNER_PREFERENCE = round
+        Native.DwmSetWindowAttribute(hwnd, 38, ref acrylic, sizeof(int)); // DWMWA_SYSTEMBACKDROP_TYPE = transient (acrylic)
+        src.AddHook(KeepActive);
+        Native.SendMessage(hwnd, WM_NCACTIVATE, new IntPtr(1), IntPtr.Zero); // never-focused windows (dock, banners) start "inactive"
+    }
+
+    const int WM_NCACTIVATE = 0x0086;
+
+    // DWM swaps acrylic for a flat colour on inactive windows; the dock and banners are never active,
+    // so always report the frame as active. lParam -1 = don't repaint the (hidden) non-client area.
+    static IntPtr KeepActive(IntPtr h, int msg, IntPtr w, IntPtr l, ref bool handled)
+    {
+        if (msg != WM_NCACTIVATE) return IntPtr.Zero;
+        handled = true;
+        return Native.DefWindowProc(h, msg, new IntPtr(1), new IntPtr(-1));
+    }
+}
 
 static class UI
 {
@@ -53,17 +116,22 @@ static class UI
 /// <summary>Panel that opens on demand and hides when it loses focus (Control Centre, Spotlight…).</summary>
 public class Popover : Window
 {
+    /// <summary>Full-screen Launchpad opts out: it uses the rectangular blur instead.</summary>
+    protected virtual bool UseGlass => true;
+
     public Popover()
     {
-        WindowStyle = WindowStyle.None;
-        AllowsTransparency = true;
-        Background = Brushes.Transparent;
+        bool glass = Glass.Setup(this, UseGlass);
         ShowInTaskbar = false;
         Topmost = true;
         ResizeMode = ResizeMode.NoResize;
         SetResourceReference(FontFamilyProperty, "UiFont");
         Deactivated += (_, _) => Hide();
-        SourceInitialized += (_, _) => Native.SetToolWindow(UI.Hwnd(this), false);
+        SourceInitialized += (_, _) =>
+        {
+            Native.SetToolWindow(UI.Hwnd(this), false);
+            if (glass && Content is Border panel) Glass.Style(panel);
+        };
     }
 
     public void Toggle() { if (IsVisible) Hide(); else Open(); }
@@ -88,12 +156,11 @@ public class Popover : Window
 public class MacWindow : Window
 {
     Rect? _restore;
+    readonly bool _glass;
 
     public MacWindow()
     {
-        WindowStyle = WindowStyle.None;
-        AllowsTransparency = true;
-        Background = Brushes.Transparent;
+        _glass = Glass.Setup(this);
         ResizeMode = ResizeMode.NoResize;
         WindowStartupLocation = WindowStartupLocation.CenterScreen;
         SetResourceReference(StyleProperty, "MacWindow");
@@ -102,6 +169,12 @@ public class MacWindow : Window
     public override void OnApplyTemplate()
     {
         base.OnApplyTemplate();
+        if (_glass && GetTemplateChild("PART_Root") is FrameworkElement root && GetTemplateChild("PART_Bg") is Border bg)
+        {
+            root.Margin = new Thickness(0); // the margin only made room for WPF's own drop shadow
+            bg.Effect = null;
+            Glass.Style(bg);
+        }
         if (GetTemplateChild("PART_Close") is Button close) close.Click += (_, _) => Close();
         if (GetTemplateChild("PART_Min") is Button min) min.Click += (_, _) => WindowState = WindowState.Minimized;
         if (GetTemplateChild("PART_Zoom") is Button zoom) zoom.Click += (_, _) => Zoom();

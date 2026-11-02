@@ -87,6 +87,9 @@ static class Native
     [DllImport("gdi32.dll")] public static extern bool DeleteObject(IntPtr h);
     [DllImport("dwmapi.dll")] public static extern int DwmGetWindowAttribute(IntPtr h, int attr, out RECT r, int size);
     [DllImport("dwmapi.dll")] public static extern int DwmGetWindowAttribute(IntPtr h, int attr, out int v, int size);
+    [DllImport("dwmapi.dll")] public static extern int DwmSetWindowAttribute(IntPtr h, int attr, ref int v, int size);
+    [DllImport("user32.dll")] public static extern IntPtr DefWindowProc(IntPtr h, int msg, IntPtr w, IntPtr l);
+    [DllImport("user32.dll")] public static extern IntPtr SendMessage(IntPtr h, int msg, IntPtr w, IntPtr l);
     [DllImport("ole32.dll")] public static extern int PropVariantClear(ref PROPVARIANT pv);
 
     // ---- Blur behind (undocumented but stable since Windows 10) ----

@@ -4,7 +4,10 @@
     <FontFamily x:Key="UiFont">Segoe UI Variable Text, Segoe UI</FontFamily>
     <FontFamily x:Key="GlyphFont">Segoe Fluent Icons, Segoe MDL2 Assets</FontFamily>
 
-    <SolidColorBrush x:Key="PanelBg" Color="#EE242426"/>
+    <!-- Solid: without a real blur behind it, translucency just lets the content underneath bleed through. -->
+    <SolidColorBrush x:Key="PanelBg" Color="#FA242426"/>
+    <!-- Laid over real acrylic (Windows 11 22H2+, see Glass in Views/UI.cs) -->
+    <SolidColorBrush x:Key="GlassTint" Color="#40161618"/>
     <SolidColorBrush x:Key="BarBg" Color="#A0161618"/>
     <SolidColorBrush x:Key="CardBg" Color="#1FFFFFFF"/>
     <SolidColorBrush x:Key="HoverBg" Color="#26FFFFFF"/>
@@ -145,8 +148,8 @@
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="Window">
-                    <Grid Margin="16">
-                        <Border Background="{StaticResource PanelBg}" BorderBrush="{StaticResource Line}" BorderThickness="1" CornerRadius="10">
+                    <Grid x:Name="PART_Root" Margin="16">
+                        <Border x:Name="PART_Bg" Background="{StaticResource PanelBg}" BorderBrush="{StaticResource Line}" BorderThickness="1" CornerRadius="10">
                             <Border.Effect>
                                 <DropShadowEffect BlurRadius="24" ShadowDepth="6" Opacity="0.5"/>
                             </Border.Effect>

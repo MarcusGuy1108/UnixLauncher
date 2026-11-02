@@ -35,8 +35,8 @@ public partial class ControlCentre : Popover
 
     protected override void OnOpening()
     {
-        Left = SystemParameters.PrimaryScreenWidth - Width - 4;
-        Top = 26;
+        Left = SystemParameters.PrimaryScreenWidth - Width - 12;
+        Top = 34; // just under the menu bar
         _ = Load();
     }
 

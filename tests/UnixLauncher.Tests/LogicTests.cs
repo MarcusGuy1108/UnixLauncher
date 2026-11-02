@@ -83,3 +83,24 @@ public class CommandLineTests
     [Fact] public void UnknownFileSplitsAtFirstSpace() =>
         Assert.Equal(("tool.exe", "/s x"), CommandLine.Split("tool.exe /s x", _ => false));
 }
+
+public class CalendarMathTests
+{
+    [Fact]
+    public void SundayStartNeedsNoBlankForNov2026() // 1 Nov 2026 is a Sunday
+    {
+        var c = CalendarMath.Cells(2026, 11, DayOfWeek.Sunday);
+        Assert.Equal(1, c[0]);
+        Assert.Equal(30, c.Count);
+    }
+
+    [Fact]
+    public void MondayStartPutsSundayLast()
+    {
+        var c = CalendarMath.Cells(2026, 11, DayOfWeek.Monday);
+        Assert.Equal(6, c.TakeWhile(x => x == null).Count());
+        Assert.Equal(36, c.Count);
+    }
+
+    [Fact] public void LeapFebruaryHas29Days() => Assert.Equal(29, CalendarMath.Cells(2028, 2, DayOfWeek.Sunday).Max());
+}

@@ -103,6 +103,9 @@ knowing:
 - The Win key still opens the Windows Start menu (on-top mode).
 - Spotlight's hotkey is fixed to Alt+Space, so it clashes with PowerToys Run if you use that.
 - The launcher UI is dark-only.
+- Frosted glass behind the dock, panels and launcher windows needs **Windows 11 22H2 or later**,
+  which provides the blur and rounded corners. On older Windows the menu bar and Launchpad are still
+  blurred, but the dock and panels are solid.
 
 ## Project layout
 

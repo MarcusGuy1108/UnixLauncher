@@ -28,6 +28,7 @@ public partial class DockWindow : Window
     }
 
     IntPtr _hwnd;
+    readonly Window? _glass; // acrylic backdrop kept under the shelf (Windows 11 22H2+)
     List<WinInfo> _windows = new();
     string _signature = "";
     // Parallel lists describing the stack, in order. Visual is null for separators.
@@ -52,6 +53,17 @@ public partial class DockWindow : Window
     public DockWindow()
     {
         InitializeComponent();
+        if (Glass.Supported)
+        {
+            // This window spans the whole screen edge (room for magnified icons), so blurring it would blur
+            // that entire strip. Instead a separate shelf-sized acrylic window sits directly underneath.
+            _glass = new Window { ShowInTaskbar = false, ShowActivated = false, Topmost = true, ResizeMode = ResizeMode.NoResize, Title = "Dock Backdrop" };
+            Glass.Setup(_glass);
+            _glass.SourceInitialized += (_, _) => Native.SetToolWindow(UI.Hwnd(_glass), true);
+            Glass.Style(ShelfBg);
+            ShelfBg.CornerRadius = new CornerRadius(8); // same radius DWM gives the backdrop window
+            ShelfBg.SizeChanged += (_, _) => SyncGlass();
+        }
         SourceInitialized += (_, _) =>
         {
             _hwnd = UI.Hwnd(this);
@@ -115,6 +127,7 @@ public partial class DockWindow : Window
         Slide.X = Slide.Y = 0;
         _autoShown = true;
         if (S.DockAutoHide) SetAutoShown(false);
+        Dispatcher.InvokeAsync(SyncGlass, DispatcherPriority.Loaded); // after the new layout is measured
     }
 
     public void SetHiddenForFullscreen(bool hidden)
@@ -122,6 +135,18 @@ public partial class DockWindow : Window
         if (hidden == _fullscreenHidden) return;
         _fullscreenHidden = hidden;
         if (hidden) Hide(); else Show();
+        SyncGlass();
+    }
+
+    /// <summary>Keep the acrylic backdrop exactly under the shelf, just below this window in z-order.</summary>
+    void SyncGlass()
+    {
+        if (_glass == null) return;
+        if (!IsVisible || !_autoShown || ShelfBg.ActualWidth == 0) { _glass.Hide(); return; }
+        var a = ShelfBg.PointToScreen(new Point(0, 0));
+        var b = ShelfBg.PointToScreen(new Point(ShelfBg.ActualWidth, ShelfBg.ActualHeight));
+        _glass.Show();
+        Native.SetWindowPos(UI.Hwnd(_glass), _hwnd, (int)a.X, (int)a.Y, (int)Math.Round(b.X - a.X), (int)Math.Round(b.Y - a.Y), Native.SWP_NOACTIVATE);
     }
 
     // ---------- Items ----------
@@ -372,6 +397,8 @@ public partial class DockWindow : Window
         _autoShown = show;
         double dist = Thickness + EdgeMargin + 10;
         var anim = new DoubleAnimation(show ? 0 : (Edge == "Left" ? -dist : dist), TimeSpan.FromMilliseconds(180));
+        // The backdrop can't follow a WPF animation: drop it while sliding out, bring it back once in place.
+        if (show) anim.Completed += (_, _) => SyncGlass(); else SyncGlass();
         Slide.BeginAnimation(Vertical ? TranslateTransform.XProperty : TranslateTransform.YProperty, anim);
     }
 

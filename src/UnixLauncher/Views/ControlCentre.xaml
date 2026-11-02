@@ -2,8 +2,8 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:local="clr-namespace:UnixLauncher.Views"
-        Width="336" SizeToContent="Height" Title="Control Centre" Foreground="{StaticResource Text}" FontSize="13">
-    <Border Background="{StaticResource PanelBg}" BorderBrush="{StaticResource Line}" BorderThickness="1" CornerRadius="16" Padding="10" Margin="8">
+        Width="320" SizeToContent="Height" Title="Control Centre" Foreground="{StaticResource Text}" FontSize="13">
+    <Border Background="{StaticResource PanelBg}" BorderBrush="{StaticResource Line}" BorderThickness="1" CornerRadius="16" Padding="10">
         <StackPanel>
             <!-- Tiles: left-click toggles, right-click opens the matching Windows settings page -->
             <UniformGrid Columns="2" Rows="2">

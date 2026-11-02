@@ -89,6 +89,18 @@ public static class CommandLine
     }
 }
 
+public static class CalendarMath
+{
+    /// <summary>Month grid cells: leading blanks (null) so day 1 falls under its weekday, then 1..last day.</summary>
+    public static List<int?> Cells(int year, int month, DayOfWeek firstDayOfWeek)
+    {
+        int lead = ((int)new DateTime(year, month, 1).DayOfWeek - (int)firstDayOfWeek + 7) % 7;
+        var cells = Enumerable.Repeat<int?>(null, lead).ToList();
+        for (int d = 1; d <= DateTime.DaysInMonth(year, month); d++) cells.Add(d);
+        return cells;
+    }
+}
+
 public static class Calc
 {
     static readonly Regex Arithmetic = new(@"^[\d\s.+\-*/()%]+$");
