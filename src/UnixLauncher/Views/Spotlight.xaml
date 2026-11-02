@@ -5,7 +5,7 @@
         Width="676" SizeToContent="Height" Title="Spotlight" Foreground="{StaticResource Text}">
     <!-- macOS 27: a capsule search field and, below it, a separate results card, each its own glass (UI.FloatingGlass) -->
     <StackPanel>
-        <Border Background="#A0262628" CornerRadius="30" Height="60" Padding="22,0" local:UI.GlassRadius="30">
+        <Border Background="{StaticResource FloatTint}" BorderBrush="{StaticResource GlassRim}" BorderThickness="1" CornerRadius="30" Height="60" Padding="22,0" local:UI.GlassRadius="30">
             <DockPanel VerticalAlignment="Center">
                 <ContentControl x:Name="SearchIcon" DockPanel.Dock="Left" Margin="0,0,12,0" VerticalAlignment="Center"/>
                 <Grid>
@@ -14,7 +14,7 @@
                 </Grid>
             </DockPanel>
         </Border>
-        <Border x:Name="ResultsCard" Background="#A0262628" CornerRadius="24" Padding="8" Margin="0,10,0,0" local:UI.GlassRadius="24"
+        <Border x:Name="ResultsCard" Background="{StaticResource FloatTint}" BorderBrush="{StaticResource GlassRim}" BorderThickness="1" CornerRadius="24" Padding="8" Margin="0,10,0,0" local:UI.GlassRadius="24"
                 Visibility="{Binding Visibility, ElementName=Results}">
             <ListBox x:Name="Results" Background="Transparent" BorderThickness="0" Visibility="Collapsed"
                      ItemContainerStyle="{StaticResource ResultItem}" ScrollViewer.HorizontalScrollBarVisibility="Disabled"

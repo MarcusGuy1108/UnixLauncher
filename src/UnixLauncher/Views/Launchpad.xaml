@@ -6,7 +6,7 @@
     <!-- macOS 26/27 Apps (Launchpad's successor): an "Applications" capsule field over a rounded card of app icons,
          each its own glass (UI.FloatingGlass). Typing filters; Return opens the first match. -->
     <StackPanel x:Name="Page">
-        <Border HorizontalAlignment="Center" Width="520" Height="60" CornerRadius="30" Background="{StaticResource FloatTint}" Padding="22,0"
+        <Border HorizontalAlignment="Center" Width="520" Height="60" CornerRadius="30" Background="{StaticResource FloatTint}" BorderBrush="{StaticResource GlassRim}" BorderThickness="1" Padding="22,0"
                 local:UI.GlassRadius="30">
             <DockPanel VerticalAlignment="Center">
                 <ContentControl x:Name="SearchIcon" Margin="0,0,12,0" VerticalAlignment="Center"/>
@@ -16,7 +16,7 @@
                 </Grid>
             </DockPanel>
         </Border>
-        <Border Height="520" Margin="0,12,0,0" CornerRadius="28" Background="{StaticResource FloatTint}" Padding="12,14" local:UI.GlassRadius="28">
+        <Border Height="520" Margin="0,12,0,0" CornerRadius="28" Background="{StaticResource FloatTint}" BorderBrush="{StaticResource GlassRim}" BorderThickness="1" Padding="12,14" local:UI.GlassRadius="28">
             <ScrollViewer VerticalScrollBarVisibility="Auto">
                 <ItemsControl x:Name="AppGrid">
                     <ItemsControl.ItemsPanel>

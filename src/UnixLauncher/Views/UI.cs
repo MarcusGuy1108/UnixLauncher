@@ -82,6 +82,9 @@ static class UI
 {
     public static IntPtr Hwnd(Window w) => new WindowInteropHelper(w).EnsureHandle();
 
+    /// <summary>Acrylic tint of menus and floating glass: a light dark-grey (0xAABBGGRR), so the wallpaper's colour comes through.</summary>
+    public const int GlassAcrylic = 0x30202022;
+
     /// <summary>Marks an element as one floating glass shape (see <see cref="FloatingGlass"/>), with this corner radius.</summary>
     public static readonly DependencyProperty GlassRadiusProperty =
         DependencyProperty.RegisterAttached("GlassRadius", typeof(double), typeof(UI), new PropertyMetadata(double.NaN));
@@ -96,7 +99,7 @@ static class UI
     public static void FloatingGlass(Window w)
     {
         string last = "";
-        w.SourceInitialized += (_, _) => Native.EnableBlur(Hwnd(w));
+        w.SourceInitialized += (_, _) => Native.EnableBlur(Hwnd(w), acrylicTint: GlassAcrylic);
         w.LayoutUpdated += (_, _) =>
         {
             if (w.Content is not Visual root) return; // also while hidden, so the clip is right before the first frame
@@ -110,7 +113,9 @@ static class UI
             IntPtr rgn = Native.CreateRectRgn(0, 0, 0, 0);
             foreach (var (l, t, r, b, rad) in shapes)
             {
-                IntPtr one = Native.CreateRoundRectRgn(l, t, r + 1, b + 1, rad * 2, rad * 2);
+                // 1px inside the drawn outline: GDI's rounded region is jagged and a touch larger than WPF's smooth edge,
+                // so blur would poke out at the corners. The rim drawn on that last pixel hides the seam.
+                IntPtr one = Native.CreateRoundRectRgn(l + 1, t + 1, r, b, rad * 2, rad * 2);
                 Native.CombineRgn(rgn, rgn, one, 2); // RGN_OR
                 Native.DeleteObject(one);
             }
@@ -209,10 +214,10 @@ static class UI
     {
         if (PresentationSource.FromVisual(menu) is not HwndSource src) return;
         IntPtr h = src.Handle;
-        Native.EnableBlur(h);
+        Native.EnableBlur(h, acrylicTint: GlassAcrylic);
         double s = Scale(menu);
         int w = (int)Math.Ceiling(menu.ActualWidth * s), ht = (int)Math.Ceiling(menu.ActualHeight * s), r = (int)(28 * s); // the menu's 14px corners
-        if (w > 0 && ht > 0) Native.SetWindowRgn(h, Native.CreateRoundRectRgn(0, 0, w + 1, ht + 1, r, r), true);
+        if (w > 0 && ht > 0) Native.SetWindowRgn(h, Native.CreateRoundRectRgn(1, 1, w, ht, r, r), true); // inside the edge: no blur poking out
     }
 
     /// <summary>Activate a launcher window; falls back to forcing it forward when Windows' focus rules refuse (hook hotkeys).</summary>

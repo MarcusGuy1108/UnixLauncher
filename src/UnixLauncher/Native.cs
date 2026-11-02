@@ -185,9 +185,12 @@ static class Native
     [StructLayout(LayoutKind.Sequential)]
     public struct WindowCompositionAttribData { public int Attribute; public IntPtr Data; public int SizeOfData; }
 
-    public static void EnableBlur(IntPtr hwnd, bool on = true)
+    /// <summary>Blur behind a window. With a tint (0xAABBGGRR) it's Windows' acrylic: a stronger, smoother blur that keeps text
+    /// readable over bright wallpaper with only a light tint, closer to macOS glass.</summary>
+    public static void EnableBlur(IntPtr hwnd, bool on = true, int acrylicTint = 0)
     {
-        var accent = new AccentPolicy { AccentState = on ? 3 : 0 }; // ACCENT_ENABLE_BLURBEHIND / ACCENT_DISABLED
+        // ACCENT_DISABLED / ACCENT_ENABLE_BLURBEHIND / ACCENT_ENABLE_ACRYLICBLURBEHIND
+        var accent = new AccentPolicy { AccentState = !on ? 0 : acrylicTint != 0 ? 4 : 3, GradientColor = acrylicTint };
         int size = Marshal.SizeOf(accent);
         IntPtr p = Marshal.AllocHGlobal(size);
         try

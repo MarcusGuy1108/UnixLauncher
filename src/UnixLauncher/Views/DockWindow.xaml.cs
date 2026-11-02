@@ -171,7 +171,8 @@ public partial class DockWindow : Window
         var glass = UI.Hwnd(_glass);
         Native.SetWindowPos(glass, _hwnd, (int)a.X, (int)a.Y, w, h, Native.SWP_NOACTIVATE);
         // DWM only rounds windows by 8px; clip the blur to the shelf's own radius (the shelf's rim hides the region's hard edge).
-        Native.SetWindowRgn(glass, Native.CreateRoundRectRgn(0, 0, w + 1, h + 1, r, r), true); // Windows owns the region afterwards
+        // 1px inside the shelf's rim: GDI's rounded region is jagged and slightly larger than the drawn curve. Windows owns it afterwards.
+        Native.SetWindowRgn(glass, Native.CreateRoundRectRgn(1, 1, w, h, r, r), true);
     }
 
     // ---------- Items ----------
