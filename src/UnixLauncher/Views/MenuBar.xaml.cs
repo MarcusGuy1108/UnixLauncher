@@ -134,7 +134,7 @@ public partial class MenuBar : Window
             if (sub == IntPtr.Zero || title.Length == 0) continue;
             int pos = i;
             var btn = new Button { Style = (Style)FindResource("BarButton"), Content = title };
-            btn.Click += (_, _) => ShowNativeMenu(target, sub, pos, btn);
+            btn.Click += (_, _) => ShowNativeMenu(target, menu, sub, pos, btn);
             AppMenus.Children.Add(btn);
         }
         var window = new Button { Style = (Style)FindResource("BarButton"), Content = "Window" };
@@ -142,15 +142,24 @@ public partial class MenuBar : Window
         AppMenus.Children.Add(window);
     }
 
-    void ShowNativeMenu(IntPtr target, IntPtr sub, int pos, FrameworkElement under)
+    HwndSource? _menuOwner;
+
+    void ShowNativeMenu(IntPtr target, IntPtr menu, IntPtr sub, int pos, FrameworkElement under)
     {
-        // Let the app refresh ticks and greyed-out items, as it does before opening its own menu.
-        Native.SendMessageTimeout(target, 0x0117, sub, new IntPtr(pos), 0x2, 300, out _); // WM_INITMENUPOPUP, SMTO_ABORTIFHUNG
+        // Same two messages Windows sends before opening an app's own menu, so it refreshes ticks and greyed-out items.
+        Native.SendMessageTimeout(target, 0x0116, menu, IntPtr.Zero, 0x2, 300, out _);        // WM_INITMENU, SMTO_ABORTIFHUNG
+        Native.SendMessageTimeout(target, 0x0117, sub, new IntPtr(pos), 0x2, 300, out _);    // WM_INITMENUPOPUP
         var pt = under.PointToScreen(new Point(0, under.ActualHeight));
-        // The owner must be foreground or the menu won't close on an outside click.
-        Native.SetForegroundWindow(_hwnd);
-        int cmd = Native.TrackPopupMenuEx(sub, 0x100 | 0x80, (int)pt.X, (int)pt.Y, _hwnd, IntPtr.Zero); // TPM_RETURNCMD | TPM_NONOTIFY
-        Native.PostMessage(_hwnd, 0, IntPtr.Zero, IntPtr.Zero); // WM_NULL: documented fix so the next click isn't swallowed
+        // The owner must be the foreground window, or the menu ignores the keyboard and won't close on an
+        // outside click. The bar itself never takes focus, so use a hidden helper (the tray-icon pattern).
+        _menuOwner ??= new HwndSource(new HwndSourceParameters("UnixLauncher menu owner")
+        {
+            Width = 0, Height = 0, WindowStyle = unchecked((int)0x80000000), ExtendedWindowStyle = 0x80, // WS_POPUP (hidden), WS_EX_TOOLWINDOW
+        });
+        var owner = _menuOwner.Handle;
+        Native.SetForegroundWindow(owner);
+        int cmd = Native.TrackPopupMenuEx(sub, 0x100 | 0x80, (int)pt.X, (int)pt.Y, owner, IntPtr.Zero); // TPM_RETURNCMD | TPM_NONOTIFY
+        Native.PostMessage(owner, 0, IntPtr.Zero, IntPtr.Zero); // WM_NULL: documented fix so the next click isn't swallowed
         Native.Activate(target); // hand focus straight back, as macOS does
         if (cmd != 0) Native.PostMessage(target, 0x0111, new IntPtr(cmd), IntPtr.Zero); // WM_COMMAND
     }
