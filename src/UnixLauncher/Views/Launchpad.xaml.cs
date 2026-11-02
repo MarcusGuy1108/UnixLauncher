@@ -12,6 +12,7 @@ namespace UnixLauncher.Views;
 public partial class Launchpad : Popover
 {
     protected override bool UseGlass => false; // full-screen: the plain rectangular blur fits it
+    protected override bool Animated => false;  // it has its own zoom (OnOpening)
 
     public Launchpad()
     {

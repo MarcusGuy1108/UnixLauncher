@@ -26,11 +26,13 @@ public class FileItem : INotifyPropertyChanged
     public long Size { get; init; }
     public DateTime Modified { get; init; }
     public string Kind { get; init; } = "";
+    /// <summary>Extra line under the name in icon view (a drive's free space), as Finder shows for volumes.</summary>
+    public string? Info { get; init; }
 
     /// <summary>Like Explorer, shortcuts show without their .lnk / .url extension.</summary>
     public string DisplayName => !IsDir && (Name.EndsWith(".lnk", StringComparison.OrdinalIgnoreCase) || Name.EndsWith(".url", StringComparison.OrdinalIgnoreCase))
         ? System.IO.Path.GetFileNameWithoutExtension(Name) : Name;
-    public string DateText => FileFormat.Date(Modified, DateTime.Now);
+    public string DateText => Modified == default ? "--" : FileFormat.Date(Modified, DateTime.Now);
     public string SizeText => IsDir ? "--" : FileFormat.Size(Size);
 
     ImageSource? _icon;
@@ -54,7 +56,10 @@ public partial class FinderWindow : MacWindow
     static readonly HashSet<string> OwnIconExts = new(StringComparer.OrdinalIgnoreCase)
         { ".exe", ".lnk", ".url", ".ico", ".msc", ".cpl", ".scr", ".appref-ms" };
 
+    // Locations that aren't folders on disk.
+    public const string ThisPcPath = "::thispc", TrashPath = "::trash";
     string _current = Home;
+    bool Virtual => _current.StartsWith("::");
     readonly Stack<string> _back = new(), _forward = new();
     List<FileItem> _all = new();
     string _sortBy = "Name";
@@ -111,7 +116,11 @@ public partial class FinderWindow : MacWindow
         _searchDelay.Tick += (_, _) => { _searchDelay.Stop(); RunSearch(); };
         PreviewKeyDown += OnKeys;
         PreviewMouseLeftButtonUp += (_, _) => ApplyDeferredSelect();
-        Activated += (_, _) => BuildSidebar(); // picks up drives plugged in since
+        Activated += (_, _) => // picks up drives plugged in since, and anything trashed elsewhere
+        {
+            BuildSidebar();
+            if (Virtual && !_searching) Reload();
+        };
         Closed += (_, _) => { _watcher?.Dispose(); _searchCts?.Cancel(); _generation++; };
         BuildSidebar();
         Navigate(folder, addHistory: false);
@@ -121,10 +130,12 @@ public partial class FinderWindow : MacWindow
     public void Navigate(string dir, bool addHistory = true)
     {
         if (dir == "::apps") { App.Launchpad.Open(); return; }
-        if (dir == "::trash") { Sys.Launch("shell:RecycleBinFolder"); return; }
-        string full;
-        try { full = System.IO.Path.GetFullPath(dir); } catch { return; }
-        if (!Directory.Exists(full)) { MessageBox.Show(this, $"“{dir}” can't be found.", "Finder"); return; }
+        string full = dir;
+        if (dir is not (ThisPcPath or TrashPath))
+        {
+            try { full = System.IO.Path.GetFullPath(dir); } catch { return; }
+            if (!Directory.Exists(full)) { MessageBox.Show(this, $"“{dir}” can't be found.", "Finder"); return; }
+        }
         if (addHistory && !string.Equals(full, _current, StringComparison.OrdinalIgnoreCase)) { _back.Push(_current); _forward.Clear(); }
         _current = full;
         _searching = false;
@@ -144,14 +155,16 @@ public partial class FinderWindow : MacWindow
 
     void Up()
     {
-        if (Directory.GetParent(_current) is not { } parent) return;
+        if (Virtual) return;
         string child = _current;
-        Navigate(parent.FullName);
+        Navigate(Directory.GetParent(_current)?.FullName ?? ThisPcPath); // above a drive is This PC
         Select(child);
     }
 
     static string DisplayName(string path)
     {
+        if (path == ThisPcPath) return "This PC";
+        if (path == TrashPath) return "Recycle Bin";
         string? root = System.IO.Path.GetPathRoot(path);
         if (root != null && string.Equals(root.TrimEnd('\\'), path.TrimEnd('\\'), StringComparison.OrdinalIgnoreCase))
         {
@@ -175,11 +188,73 @@ public partial class FinderWindow : MacWindow
         var keep = keepSelection ? Selected().Select(i => i.Path).ToHashSet(StringComparer.OrdinalIgnoreCase) : null;
         var old = _all.ToDictionary(i => i.Path, StringComparer.OrdinalIgnoreCase);
         _error = null;
-        try { _all = new DirectoryInfo(_current).EnumerateFileSystemInfos("*", new EnumerationOptions()).Select(ToItem).ToList(); }
+        try
+        {
+            _all = _current switch
+            {
+                ThisPcPath => DriveItems(),
+                TrashPath => TrashItems(),
+                _ => new DirectoryInfo(_current).EnumerateFileSystemInfos("*", new EnumerationOptions()).Select(ToItem).ToList(),
+            };
+        }
         catch (Exception ex) { _all = new(); _error = ex.Message; }
         foreach (var it in _all) // unchanged files keep their already-loaded icon
             if (old.TryGetValue(it.Path, out var o) && o.Modified == it.Modified) it.Icon = o.Icon;
         Present(keep, keepScroll: keepSelection);
+    }
+
+    static bool Ready(DriveInfo d)
+    {
+        try { return d.DriveType == DriveType.Network || d.IsReady; } // skips empty card readers / CD drives
+        catch { return false; }
+    }
+
+    /// <summary>This PC: every drive, with free space where Finder shows a volume's capacity.</summary>
+    static List<FileItem> DriveItems() => DriveInfo.GetDrives().Where(Ready).Select(d =>
+    {
+        long total = 0, free = 0;
+        try { total = d.TotalSize; free = d.AvailableFreeSpace; } catch { /* network drive offline */ }
+        return new FileItem
+        {
+            Path = d.RootDirectory.FullName, Name = DriveLabel(d), IsDir = true, Size = total,
+            Kind = total > 0 ? $"{FileFormat.Size(free)} free of {FileFormat.Size(total)}" : "Drive",
+            Info = total > 0 ? $"{FileFormat.Size(free)} free of {FileFormat.Size(total)}" : null,
+        };
+    }).ToList();
+
+    /// <summary>Recycle Bin items through the shell (deleted files live under hidden $Recycle.Bin folders on each drive).</summary>
+    static IEnumerable<dynamic> TrashShellItems()
+    {
+        dynamic shell = Activator.CreateInstance(Type.GetTypeFromProgID("Shell.Application")!)!;
+        dynamic items = shell.NameSpace(10).Items(); // 10 = ssfBITBUCKET
+        int n = items.Count;
+        for (int i = 0; i < n; i++) yield return items.Item(i);
+    }
+
+    static List<FileItem> TrashItems()
+    {
+        var list = new List<FileItem>();
+        foreach (var item in TrashShellItems())
+        {
+            try { list.Add(TrashItem(item)); }
+            catch (Exception ex) { App.Log($"Recycle Bin item skipped: {ex.Message}"); } // one unreadable item mustn't hide the rest
+        }
+        return list;
+    }
+
+    static FileItem TrashItem(dynamic item)
+    {
+        string path = item.Path, name = item.Name;
+        string ext = System.IO.Path.GetExtension(path);
+        if (ext.Length > 0 && !name.EndsWith(ext, StringComparison.OrdinalIgnoreCase)) name += ext; // Explorer may hide extensions
+        bool dir = Directory.Exists(path);
+        string from = item.ExtendedProperty("System.Recycle.DeletedFrom") as string ?? "";
+        DateTime when = item.ExtendedProperty("System.Recycle.DateDeleted") is DateTime d ? d : File.GetLastWriteTime(path);
+        return new FileItem
+        {
+            Path = path, Name = name, IsDir = dir, Size = dir ? 0 : new FileInfo(path).Length, Modified = when,
+            Kind = from.Length > 0 ? $"From {from}" : "Deleted item", // where Put Back will return it
+        };
     }
 
     static FileItem ToItem(FileSystemInfo f)
@@ -257,6 +332,7 @@ public partial class FinderWindow : MacWindow
     {
         _watcher?.Dispose();
         _watcher = null;
+        if (dir.StartsWith("::")) return; // This PC / Recycle Bin refresh on activation and after our own changes
         try
         {
             var w = new FileSystemWatcher(dir) { NotifyFilter = NotifyFilters.FileName | NotifyFilters.DirectoryName | NotifyFilters.LastWrite | NotifyFilters.Size };
@@ -288,7 +364,11 @@ public partial class FinderWindow : MacWindow
     {
         int n = Files.Items.Count, k = Files.SelectedItems.Count;
         string text = k > 0 ? $"{k} of {n} selected" : n == 1 ? "1 item" : $"{n} items";
-        try { if (!_current.StartsWith(@"\\")) text += $", {FileFormat.Size(new DriveInfo(_current).AvailableFreeSpace)} available"; }
+        try
+        {
+            if (_current == TrashPath) text += $", {FileFormat.Size(_all.Sum(i => i.Size))}";
+            else if (!Virtual && !_current.StartsWith(@"\\")) text += $", {FileFormat.Size(new DriveInfo(_current).AvailableFreeSpace)} available";
+        }
         catch { /* drive went away */ }
         StatusText.Text = _error ?? text;
     }
@@ -370,7 +450,7 @@ public partial class FinderWindow : MacWindow
             return;
         }
         var cts = _searchCts = new CancellationTokenSource();
-        string root = _current;
+        string root = Virtual ? Home : _current; // searching from This PC / Recycle Bin looks in your files
         _searching = true;
         TitleText.Text = $"Searching “{q}”";
         StatusText.Text = "Searching…";
@@ -427,7 +507,7 @@ public partial class FinderWindow : MacWindow
 
     void NewFolder()
     {
-        if (_searching) return;
+        if (_searching || Virtual) return;
         string path = System.IO.Path.Combine(_current, FileNames.Unique("untitled folder", n => Exists(System.IO.Path.Combine(_current, n)), keepExtension: false));
         try { Directory.CreateDirectory(path); }
         catch (Exception ex) { MessageBox.Show(this, ex.Message, "Finder"); return; }
@@ -438,7 +518,7 @@ public partial class FinderWindow : MacWindow
 
     void Rename()
     {
-        if (Selected() is not [var it]) return;
+        if (Virtual || Selected() is not [var it]) return;
         var name = Prompt.Ask(this, "Rename", it.Name, selectAll: it.IsDir);
         if (name == null || name == it.Name) return;
         if (FileNames.Problem(name) is { } problem) { MessageBox.Show(this, problem, "Finder"); return; }
@@ -461,9 +541,16 @@ public partial class FinderWindow : MacWindow
 
     static void MovePath(string from, string to, bool dir) { if (dir) Directory.Move(from, to); else File.Move(from, to); }
 
-    void Trash()
+    void MoveToTrash()
     {
-        var items = Selected().Select(i => (i.Path, i.IsDir)).ToList();
+        if (_current == TrashPath) { DeleteNow(); return; }
+        if (_current == ThisPcPath) return; // drives can't be trashed
+        Recycle(Selected().Select(i => i.Path).ToList());
+    }
+
+    static void Recycle(IReadOnlyList<string> paths)
+    {
+        var items = paths.Select(p => (p, Directory.Exists(p))).ToList();
         if (items.Count == 0) return;
         RunFileOp(() =>
         {
@@ -476,8 +563,39 @@ public partial class FinderWindow : MacWindow
         });
     }
 
+    /// <summary>Recycle Bin actions go through the shell so Windows restores files to where they came from.</summary>
+    void TrashVerb(string verb)
+    {
+        var paths = Selected().Select(i => i.Path).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        if (paths.Count == 0) return;
+        try
+        {
+            foreach (var item in TrashShellItems().ToList())
+                if (paths.Contains((string)item.Path)) item.InvokeVerb(verb);
+        }
+        catch (Exception ex) { MessageBox.Show(this, ex.Message, "Finder"); }
+        Reload(keepSelection: false);
+    }
+
+    void PutBack() => TrashVerb("undelete");
+
+    void DeleteNow()
+    {
+        int n = Files.SelectedItems.Count;
+        if (n == 0 || MessageBox.Show(this, $"Delete {(n == 1 ? "this item" : $"these {n} items")} immediately? You can't undo this.",
+                "Finder", MessageBoxButton.OKCancel, MessageBoxImage.Warning) != MessageBoxResult.OK) return;
+        TrashVerb("delete");
+    }
+
+    void EmptyTrash()
+    {
+        Sys.EmptyTrash(); // Windows asks for confirmation
+        if (_current == TrashPath) Reload(keepSelection: false);
+    }
+
     void GetInfo()
     {
+        if (Virtual && Files.SelectedItems.Count == 0) return;
         var paths = Selected().Select(i => i.Path).DefaultIfEmpty(_current);
         foreach (var p in paths) Native.SHObjectProperties(UI.Hwnd(this), 2, p, null); // SHOP_FILEPATH: Windows' Properties dialog
     }
@@ -486,6 +604,7 @@ public partial class FinderWindow : MacWindow
 
     void CopySelected(bool cut)
     {
+        if (Virtual) return;
         var paths = Selected().Select(i => i.Path).ToArray();
         if (paths.Length == 0) return;
         var files = new StringCollection();
@@ -502,7 +621,7 @@ public partial class FinderWindow : MacWindow
 
     void Paste()
     {
-        if (_searching || !CanPaste()) return;
+        if (_searching || Virtual || !CanPaste()) return;
         try
         {
             var files = Clipboard.GetFileDropList().Cast<string>().ToList();
@@ -562,12 +681,23 @@ public partial class FinderWindow : MacWindow
         var sel = Selected();
         var first = sel[0];
         bool one = sel.Count == 1;
+        if (_current == TrashPath)
+            return UI.Menu(
+                UI.Item("Put Back", PutBack),
+                UI.Item("Delete Immediately…", DeleteNow, keys: "Delete"),
+                null,
+                UI.Item($"Quick Look “{first.DisplayName}”", ToggleQuickLook, keys: "Space"),
+                UI.Item("Get Info", GetInfo, keys: "Alt+Enter"));
+        if (_current == ThisPcPath)
+            return UI.Menu(
+                UI.Item("Open", OpenSelected, keys: "Enter"),
+                UI.Item("Get Info", GetInfo, keys: "Alt+Enter"));
         var items = new List<MenuItem?>
         {
             UI.Item("Open", OpenSelected, keys: "Enter"),
             UI.Item("Open With…", () => Process.Start("rundll32.exe", $"shell32.dll,OpenAs_RunDLL {first.Path}"), enabled: one && !first.IsDir),
             null,
-            UI.Item("Move to Recycle Bin", Trash, keys: "Delete"),
+            UI.Item("Move to Recycle Bin", MoveToTrash, keys: "Delete"),
             null,
             UI.Item("Get Info", GetInfo, keys: "Alt+Enter"),
             UI.Item("Rename…", Rename, enabled: one, keys: "F2"),
@@ -583,8 +713,9 @@ public partial class FinderWindow : MacWindow
     }
 
     ContextMenu FolderMenu() => UI.Menu(
-        UI.Item("New Folder", NewFolder, enabled: !_searching, keys: "Ctrl+Shift+N"),
-        UI.Item("Paste", Paste, enabled: !_searching && CanPaste(), keys: "Ctrl+V"),
+        _current == TrashPath ? UI.Item("Empty Recycle Bin…", EmptyTrash, enabled: Files.Items.Count > 0) : null,
+        UI.Item("New Folder", NewFolder, enabled: !_searching && !Virtual, keys: "Ctrl+Shift+N"),
+        UI.Item("Paste", Paste, enabled: !_searching && !Virtual && CanPaste(), keys: "Ctrl+V"),
         null,
         UI.Item("as Icons", () => SetView(false), isChecked: !_listView, keys: "Ctrl+1"),
         UI.Item("as List", () => SetView(true), isChecked: _listView, keys: "Ctrl+2"),
@@ -595,7 +726,8 @@ public partial class FinderWindow : MacWindow
         UI.Item("Sort by Kind", () => SortBy("Kind"), isChecked: _sortBy == "Kind"),
         null,
         UI.Item("Get Info", GetInfo),
-        UI.Item("Open in File Explorer", () => Process.Start("explorer.exe", $"\"{_current}\"")));
+        UI.Item("Open in File Explorer", () => Process.Start("explorer.exe",
+            _current switch { ThisPcPath => "shell:MyComputerFolder", TrashPath => "shell:RecycleBinFolder", _ => $"\"{_current}\"" })));
 
     void ShowMenu(ContextMenu menu, UIElement? under = null)
     {
@@ -620,7 +752,7 @@ public partial class FinderWindow : MacWindow
                 UI.Item("Get Info", () => w!.GetInfo(), enabled: w != null, keys: "Alt+Enter"),
                 UI.Item("Rename…", () => w!.Rename(), enabled: Sel(w), keys: "F2"),
                 null,
-                UI.Item("Move to Recycle Bin", () => w!.Trash(), enabled: Sel(w), keys: "Delete"),
+                UI.Item("Move to Recycle Bin", () => w!.MoveToTrash(), enabled: Sel(w), keys: "Delete"),
                 null,
                 UI.Item("Quick Look", () => w!.ToggleQuickLook(), enabled: Sel(w), keys: "Space"))),
             ("Edit", () => UI.Menu(
@@ -645,9 +777,10 @@ public partial class FinderWindow : MacWindow
                     UI.Item("Enclosing Folder", () => w!.Up(), enabled: w != null, keys: "Alt+Up"),
                     null,
                     UI.Item("Applications", () => App.Launchpad.Open()),
+                    UI.Item("This PC", () => Target().Navigate(ThisPcPath)),
                 };
                 foreach (var (name, _, path) in Favourites()) go.Add(UI.Item(name, () => Target().Navigate(path)));
-                go.Add(UI.Item("Recycle Bin", () => Sys.Launch("shell:RecycleBinFolder")));
+                go.Add(UI.Item("Recycle Bin", () => Target().Navigate(TrashPath)));
                 return UI.Menu(go.ToArray());
             }),
             ("Window", () =>
@@ -687,14 +820,13 @@ public partial class FinderWindow : MacWindow
         AddPlace("Applications", "", "::apps");
         foreach (var (name, glyph, path) in Favourites()) AddPlace(name, glyph, path);
         AddHeader("Locations");
-        foreach (var d in DriveInfo.GetDrives())
+        AddPlace("This PC", "\uE7F8", ThisPcPath);
+        foreach (var d in DriveInfo.GetDrives().Where(Ready))
         {
-            try { if (d.DriveType != DriveType.Network && !d.IsReady) continue; } // skip empty card readers / CD drives
-            catch { continue; }
             string glyph = d.DriveType switch { DriveType.Removable => "", DriveType.Network => "", _ => "" };
             AddPlace(DriveLabel(d), glyph, d.RootDirectory.FullName);
         }
-        AddPlace("Recycle Bin", "", "::trash");
+        AddPlace("Recycle Bin", "", TrashPath);
         HighlightPlace();
     }
 
@@ -714,7 +846,13 @@ public partial class FinderWindow : MacWindow
         row.Children.Add(new TextBlock { Text = name, TextTrimming = TextTrimming.CharacterEllipsis, VerticalAlignment = VerticalAlignment.Center });
         var b = new Button { Style = (Style)FindResource("SidebarItem"), Content = row, ToolTip = path.StartsWith("::") ? null : path };
         b.Click += (_, _) => Navigate(path);
-        if (!path.StartsWith("::")) // drop files on a sidebar place to copy / move them there
+        if (path == TrashPath) // drag to the Recycle Bin, as to the macOS Trash
+        {
+            b.AllowDrop = true;
+            b.DragOver += (_, e) => { e.Effects = e.Data.GetDataPresent(DataFormats.FileDrop) ? DragDropEffects.Move : DragDropEffects.None; e.Handled = true; };
+            b.Drop += (_, e) => { if (e.Data.GetData(DataFormats.FileDrop) is string[] f) Recycle(f); };
+        }
+        else if (!path.StartsWith("::")) // drop files on a sidebar place to copy / move them there
         {
             b.AllowDrop = true;
             b.DragOver += (_, e) => { e.Effects = e.Data.GetData(DataFormats.FileDrop) is string[] f ? DropEffect(e, f, path) : DragDropEffects.None; e.Handled = true; };
@@ -735,7 +873,9 @@ public partial class FinderWindow : MacWindow
     {
         PathBar.Children.Clear();
         var chain = new List<string>();
-        for (var d = new DirectoryInfo(_current); d != null; d = d.Parent) chain.Insert(0, d.FullName);
+        if (!Virtual) for (var d = new DirectoryInfo(_current); d != null; d = d.Parent) chain.Insert(0, d.FullName);
+        if (_current == TrashPath) chain.Add(TrashPath);
+        else chain.Insert(0, ThisPcPath); // like Finder's path bar starting at the computer
         for (int i = 0; i < chain.Count; i++)
         {
             if (i > 0) PathBar.Children.Add(new TextBlock { Text = "›", Foreground = (Brush)FindResource("SubText"), Margin = new Thickness(2, 0, 2, 0), VerticalAlignment = VerticalAlignment.Center });
@@ -839,7 +979,10 @@ public partial class FinderWindow : MacWindow
 
     void Files_DragOver(object sender, DragEventArgs e)
     {
-        e.Effects = !_searching && e.Data.GetData(DataFormats.FileDrop) is string[] files ? DropEffect(e, files, DropTarget(e)) : DragDropEffects.None;
+        string target = DropTarget(e);
+        e.Effects = _searching || e.Data.GetData(DataFormats.FileDrop) is not string[] files || target == ThisPcPath ? DragDropEffects.None
+                  : target == TrashPath ? DragDropEffects.Move
+                  : DropEffect(e, files, target);
         e.Handled = true;
     }
 
@@ -847,6 +990,8 @@ public partial class FinderWindow : MacWindow
     {
         if (_searching || e.Data.GetData(DataFormats.FileDrop) is not string[] files) return;
         string target = DropTarget(e);
+        if (target == ThisPcPath) return;
+        if (target == TrashPath) { Recycle(files); e.Handled = true; return; }
         var effect = DropEffect(e, files, target);
         if (effect == DragDropEffects.None) return;
         Transfer(files, target, effect == DragDropEffects.Move);
@@ -880,7 +1025,7 @@ public partial class FinderWindow : MacWindow
             (Key.Escape, false, false, _) when QuickLook.IsOpen => ToggleQuickLook,
             (Key.Enter, false, false, _) => OpenSelected,
             (Key.Back, false, false, _) => Back,
-            (Key.Delete, false, false, _) => Trash,
+            (Key.Delete, false, false, _) => MoveToTrash,
             (Key.Space, false, false, _) => ToggleQuickLook,
             (Key.C, true, false, false) => () => CopySelected(false),
             (Key.X, true, false, false) => () => CopySelected(true),

@@ -114,6 +114,7 @@ static class Sys
     /// <summary>Per-user shell override (HKCU). Takes effect at next sign-in.</summary>
     public static void SetRegisteredShell(bool on)
     {
+        if (!on && !IsRegisteredShell) return; // never remove a custom shell someone else set up
         using var k = Registry.CurrentUser.CreateSubKey(WinlogonKey);
         if (on) k.SetValue("Shell", $"\"{ExePath}\"");
         else k.DeleteValue("Shell", false);
@@ -130,17 +131,23 @@ static class Sys
     }
 
     // ---------- Finder as the folder handler ----------
-    // Same mechanism Explorer replacements use: a per-user default verb on folders and drives, so double-clicking
-    // a folder anywhere (desktop, Explorer, "Open folder" in other apps) runs us with that path.
+    // Same mechanism Explorer replacements use: a per-user default verb on folders, drives, This PC and the
+    // Recycle Bin, so opening any of them anywhere (desktop, Explorer, "Open folder" in other apps) runs us instead.
     const string FolderVerb = "UnixLauncher.Finder";
-    static readonly string[] FolderClasses = { @"Software\Classes\Directory\shell", @"Software\Classes\Drive\shell" };
+    static readonly (string Key, string Arg)[] FolderClasses =
+    {
+        (@"Software\Classes\Directory\shell", "%1"),
+        (@"Software\Classes\Drive\shell", "%1"),
+        (@"Software\Classes\CLSID\{20D04FE0-3AEA-1069-A2D8-08002B30309D}\shell", Views.FinderWindow.ThisPcPath), // This PC
+        (@"Software\Classes\CLSID\{645FF040-5081-101B-9F08-00AA002F954E}\shell", Views.FinderWindow.TrashPath),  // Recycle Bin
+    };
 
     public static bool OpensFoldersInFinder
     {
-        get { using var k = Registry.CurrentUser.OpenSubKey(FolderClasses[0]); return k?.GetValue("") as string == FolderVerb; }
+        get { using var k = Registry.CurrentUser.OpenSubKey(FolderClasses[0].Key); return k?.GetValue("") as string == FolderVerb; }
         set
         {
-            foreach (var cls in FolderClasses)
+            foreach (var (cls, arg) in FolderClasses)
             {
                 if (value)
                 {
@@ -149,17 +156,71 @@ static class Sys
                     using var verb = shell.CreateSubKey(FolderVerb);
                     verb.SetValue("", "Open in Finder");
                     using var cmd = verb.CreateSubKey("command");
-                    cmd.SetValue("", $"\"{ExePath}\" --open \"%1\"");
+                    cmd.SetValue("", $"\"{ExePath}\" --open \"{arg}\"");
                 }
                 else
                 {
-                    using var shell = Registry.CurrentUser.OpenSubKey(cls, writable: true);
-                    if (shell == null) continue;
-                    if (shell.GetValue("") as string == FolderVerb) shell.DeleteValue("", false); // only undo our own change
-                    shell.DeleteSubKeyTree(FolderVerb, false);
+                    using (var shell = Registry.CurrentUser.OpenSubKey(cls, writable: true))
+                    {
+                        if (shell == null) continue;
+                        if (shell.GetValue("") as string == FolderVerb) shell.DeleteValue("", false); // only undo our own change
+                        shell.DeleteSubKeyTree(FolderVerb, false);
+                    }
+                    DeleteIfEmpty(cls);
                 }
             }
         }
+    }
+
+    /// <summary>Remove a key we created, and its parents up to Software\Classes, but only while they're empty.</summary>
+    static void DeleteIfEmpty(string path)
+    {
+        for (; path.Length > @"Software\Classes".Length && path.Contains('\\'); path = path[..path.LastIndexOf('\\')])
+        {
+            using (var k = Registry.CurrentUser.OpenSubKey(path))
+                if (k == null || k.SubKeyCount > 0 || k.ValueCount > 0) return;
+            Registry.CurrentUser.DeleteSubKey(path, false);
+        }
+    }
+
+    // ---------- Install / uninstall ----------
+    const string UninstallKey = @"Software\Microsoft\Windows\CurrentVersion\Uninstall\UnixLauncher";
+
+    /// <summary>List UnixLauncher under Windows Settings › Apps, so it can be uninstalled from there (per user, no admin).</summary>
+    public static void RegisterUninstaller()
+    {
+        using var k = Registry.CurrentUser.CreateSubKey(UninstallKey);
+        k.SetValue("DisplayName", "UnixLauncher");
+        k.SetValue("DisplayIcon", ExePath);
+        k.SetValue("Publisher", "UnixLauncher");
+        k.SetValue("DisplayVersion", typeof(Sys).Assembly.GetName().Version?.ToString(3) ?? "1.0.0");
+        k.SetValue("InstallLocation", AppContext.BaseDirectory);
+        k.SetValue("UninstallString", $"\"{ExePath}\" --uninstall");
+        k.SetValue("QuietUninstallString", $"\"{ExePath}\" --uninstall --quiet");
+        k.SetValue("NoModify", 1, RegistryValueKind.DWord);
+        k.SetValue("NoRepair", 1, RegistryValueKind.DWord);
+    }
+
+    /// <summary>
+    /// Put back everything UnixLauncher changes outside its own folder: folder / This PC / Recycle Bin handlers,
+    /// the shell replacement, start at sign-in, the Windows taskbar (and its auto-hide setting), and our registry keys.
+    /// Each step is independent so one failure can't leave the rest in place.
+    /// </summary>
+    public static List<string> RevertSystemChanges()
+    {
+        var failed = new List<string>();
+        void Step(string what, Action undo)
+        {
+            try { undo(); }
+            catch (Exception ex) { failed.Add($"{what}: {ex.Message}"); App.Log(ex); }
+        }
+        Step("Folder handler", () => OpensFoldersInFinder = false);
+        Step("Windows shell", () => SetRegisteredShell(false));
+        Step("Start at sign-in", () => StartsWithWindows = false);
+        Step("Windows taskbar", ShowTaskbar);
+        Step("Session key", () => Registry.CurrentUser.DeleteSubKeyTree(@"Software\UnixLauncher", false));
+        Step("Apps list entry", () => Registry.CurrentUser.DeleteSubKeyTree(UninstallKey, false));
+        return failed;
     }
 
     // ---------- Startup apps (Explorer normally does this; in shell mode we must) ----------

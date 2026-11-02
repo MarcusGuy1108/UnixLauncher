@@ -6,6 +6,8 @@
 
     <!-- Solid: without a real blur behind it, translucency just lets the content underneath bleed through. -->
     <SolidColorBrush x:Key="PanelBg" Color="#FA242426"/>
+    <!-- Menus get a real blur behind them (UI.GlassMenu), so they can be translucent like macOS menus -->
+    <SolidColorBrush x:Key="MenuBg" Color="#D0242426"/>
     <!-- Laid over real acrylic (Windows 11 22H2+, see Glass in Views/UI.cs) -->
     <SolidColorBrush x:Key="GlassTint" Color="#40161618"/>
     <SolidColorBrush x:Key="BarBg" Color="#A0161618"/>
@@ -55,7 +57,7 @@
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="ContextMenu">
-                    <Border Background="{StaticResource PanelBg}" BorderBrush="{StaticResource Line}" BorderThickness="1"
+                    <Border Background="{StaticResource MenuBg}" BorderBrush="{StaticResource Line}" BorderThickness="1"
                             CornerRadius="12" Padding="6" MinWidth="200">
                         <ItemsPresenter/>
                     </Border>
@@ -126,7 +128,7 @@
             <Setter.Value>
                 <ControlTemplate TargetType="Button">
                     <Grid>
-                        <Ellipse Fill="{TemplateBinding Background}" Stroke="#33000000" StrokeThickness="0.5"/>
+                        <Ellipse x:Name="Ball" Fill="{TemplateBinding Background}" Stroke="#33000000" StrokeThickness="0.5"/>
                         <TextBlock x:Name="Sym" Text="{TemplateBinding Content}" FontSize="9" FontWeight="Bold" Foreground="#99000000"
                                    HorizontalAlignment="Center" VerticalAlignment="Center" Margin="0,-1,0,0" Visibility="Hidden"/>
                     </Grid>
@@ -136,6 +138,10 @@
                         </DataTrigger>
                         <Trigger Property="IsPressed" Value="True">
                             <Setter Property="Opacity" Value="0.7"/>
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter TargetName="Ball" Property="Fill" Value="#57575B"/>
+                            <Setter TargetName="Sym" Property="Visibility" Value="Hidden"/>
                         </Trigger>
                     </ControlTemplate.Triggers>
                 </ControlTemplate>

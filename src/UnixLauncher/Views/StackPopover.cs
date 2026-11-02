@@ -12,6 +12,7 @@ namespace UnixLauncher.Views;
 public class StackPopover : Popover
 {
     const int Columns = 4, MaxItems = 16;
+    protected override Point AnimationOrigin => new(0.5, 1); // grows up out of the dock
     static StackPopover? _open;
 
     readonly string _folder, _edge;
@@ -53,7 +54,7 @@ public class StackPopover : Popover
             CornerRadius = new CornerRadius(14), Padding = new Thickness(12), Child = stack,
         };
 
-        Deactivated += (_, _) => Dispatcher.BeginInvoke(Close);
+        IsVisibleChanged += (_, _) => { if (!IsVisible) Dispatcher.BeginInvoke(Close); }; // close once the fade-out has hidden it
         Closed += (_, _) => { if (_open == this) _open = null; };
         SizeChanged += (_, _) => Place(); // the real height is only known once shown
     }

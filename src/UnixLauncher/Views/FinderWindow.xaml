@@ -18,8 +18,13 @@
                     <TextBlock Text="{Binding DisplayName}" FontSize="12" MaxWidth="92" MaxHeight="32" TextAlignment="Center"
                                TextWrapping="Wrap" TextTrimming="CharacterEllipsis"/>
                 </Border>
+                <TextBlock x:Name="InfoLine" Text="{Binding Info}" FontSize="10" Foreground="{StaticResource SubText}" TextAlignment="Center"
+                           TextWrapping="Wrap" MaxWidth="96" Margin="0,2,0,0"/>
             </StackPanel>
             <DataTemplate.Triggers>
+                <DataTrigger Binding="{Binding Info}" Value="{x:Null}">
+                    <Setter TargetName="InfoLine" Property="Visibility" Value="Collapsed"/>
+                </DataTrigger>
                 <DataTrigger Binding="{Binding IsSelected, RelativeSource={RelativeSource AncestorType=ListBoxItem}}" Value="True">
                     <Setter TargetName="Box" Property="Background" Value="#33FFFFFF"/>
                     <Setter TargetName="LabelBg" Property="Background" Value="{StaticResource Accent}"/>

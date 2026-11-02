@@ -144,6 +144,12 @@ static class Native
     [DllImport("user32.dll", EntryPoint = "SendMessageW")] public static extern IntPtr SendCopyData(IntPtr h, int msg, IntPtr w, ref COPYDATASTRUCT data);
     public const int WM_COPYDATA = 0x004A;
 
+    [DllImport("user32.dll")] public static extern IntPtr GetDC(IntPtr h);
+    [DllImport("user32.dll")] public static extern int ReleaseDC(IntPtr h, IntPtr dc);
+    [DllImport("gdi32.dll")] public static extern uint GetPixel(IntPtr dc, int x, int y);
+    [DllImport("user32.dll")] public static extern bool ReleaseCapture();
+    public const long WS_SYSMENU = 0x00080000, WS_MINIMIZEBOX = 0x00020000, WS_MAXIMIZEBOX = 0x00010000;
+
     [DllImport("gdi32.dll")] public static extern IntPtr CreateRoundRectRgn(int x1, int y1, int x2, int y2, int w, int h);
     [DllImport("user32.dll")] public static extern int SetWindowRgn(IntPtr h, IntPtr rgn, bool redraw);
 

@@ -75,8 +75,10 @@ public partial class MenuBar : Window
         if (msg == Native.WM_COPYDATA) // a folder handed over by a second launch (Finder as folder handler)
         {
             var data = Marshal.PtrToStructure<Native.COPYDATASTRUCT>(l);
-            if (data.dwData == new IntPtr(1) && Marshal.PtrToStringUni(data.lpData) is { Length: > 0 } folder)
+            if (data.dwData == new IntPtr(App.OpenMessage) && Marshal.PtrToStringUni(data.lpData) is { Length: > 0 } folder)
                 Dispatcher.BeginInvoke(() => FinderWindow.Open(folder)); // let the sender's SendMessage return first
+            else if (data.dwData == new IntPtr(App.QuitMessage))
+                Dispatcher.BeginInvoke(App.Quit); // the uninstaller asked us to go
             handled = true;
             return new IntPtr(1);
         }

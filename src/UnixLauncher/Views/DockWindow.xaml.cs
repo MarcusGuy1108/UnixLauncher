@@ -287,7 +287,7 @@ public partial class DockWindow : Window
     // ---------- Clicks ----------
     void Click(Entry e, FrameworkElement visual)
     {
-        if (e.Trash) { Sys.Launch("shell:RecycleBinFolder"); return; }
+        if (e.Trash) { FinderWindow.Open(FinderWindow.TrashPath); return; }
         if (e.Pin != null && Directory.Exists(e.Pin.Launch)) { StackPopover.Toggle(e.Pin.Launch, visual, Edge); return; }
         var wins = WindowsFor(e);
         if (wins.Count == 0)
@@ -324,7 +324,7 @@ public partial class DockWindow : Window
     ContextMenu ItemMenu(Entry e)
     {
         if (e.Trash)
-            return UI.Menu(UI.Item("Open", () => Sys.Launch("shell:RecycleBinFolder")),
+            return UI.Menu(UI.Item("Open", () => FinderWindow.Open(FinderWindow.TrashPath)),
                            UI.Item("Empty Recycle Bin", Sys.EmptyTrash, enabled: Sys.TrashHasItems()));
 
         var wins = WindowsFor(e);
@@ -394,7 +394,25 @@ public partial class DockWindow : Window
         else scales = Enumerable.Repeat(1.0, _visuals.Count).ToArray();
 
         for (int i = 0; i < _visuals.Count; i++)
-            if (_visuals[i] is { } v) v.Width = v.Height = IconSize * scales[i];
+        {
+            if (_visuals[i] is not { } v) continue;
+            double size = IconSize * scales[i];
+            if (mouse == null && Math.Abs(v.ActualWidth - size) > 0.5)
+            {
+                // The pointer left: settle back smoothly, as the macOS dock does.
+                var settle = new DoubleAnimation(v.ActualWidth, size, TimeSpan.FromMilliseconds(180))
+                {
+                    EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut }, FillBehavior = FillBehavior.Stop,
+                };
+                v.Width = v.Height = size;
+                v.BeginAnimation(WidthProperty, settle);
+                v.BeginAnimation(HeightProperty, settle);
+                continue;
+            }
+            v.BeginAnimation(WidthProperty, null); // the pointer is back: follow it directly
+            v.BeginAnimation(HeightProperty, null);
+            v.Width = v.Height = size;
+        }
     }
 
     // ---------- Auto-hide ----------

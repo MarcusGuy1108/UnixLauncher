@@ -5,6 +5,7 @@ using System.Windows.Controls.Primitives;
 using System.Windows.Input;
 using System.Windows.Interop;
 using System.Windows.Media;
+using System.Windows.Media.Animation;
 using System.Windows.Shell;
 
 namespace UnixLauncher.Views;
@@ -92,6 +93,31 @@ static class UI
         return tb;
     }
 
+    static readonly IEasingFunction EaseOut = new CubicEase { EasingMode = EasingMode.EaseOut };
+
+    /// <summary>macOS-style appearance: a quick fade in while growing from slightly smaller.</summary>
+    public static void PopIn(FrameworkElement el, double from = 0.96, Point? origin = null, int ms = 180)
+    {
+        var dur = TimeSpan.FromMilliseconds(ms);
+        var scale = new ScaleTransform(from, from);
+        el.RenderTransformOrigin = origin ?? new Point(0.5, 0.5);
+        el.RenderTransform = scale;
+        scale.BeginAnimation(ScaleTransform.ScaleXProperty, new DoubleAnimation(from, 1, dur) { EasingFunction = EaseOut });
+        scale.BeginAnimation(ScaleTransform.ScaleYProperty, new DoubleAnimation(from, 1, dur) { EasingFunction = EaseOut });
+        el.BeginAnimation(UIElement.OpacityProperty, new DoubleAnimation(0, 1, dur));
+    }
+
+    /// <summary>Blur behind a menu, clipped to its 12px rounded corners (menus are WPF popups, which are layered windows).</summary>
+    public static void GlassMenu(ContextMenu menu)
+    {
+        if (PresentationSource.FromVisual(menu) is not HwndSource src) return;
+        IntPtr h = src.Handle;
+        Native.EnableBlur(h);
+        double s = Scale(menu);
+        int w = (int)Math.Ceiling(menu.ActualWidth * s), ht = (int)Math.Ceiling(menu.ActualHeight * s), r = (int)(24 * s);
+        if (w > 0 && ht > 0) Native.SetWindowRgn(h, Native.CreateRoundRectRgn(0, 0, w + 1, ht + 1, r, r), true);
+    }
+
     /// <summary>Activate a launcher window; falls back to forcing it forward when Windows' focus rules refuse (hook hotkeys).</summary>
     public static void BringToFront(Window w)
     {
@@ -105,11 +131,16 @@ static class UI
         return mi;
     }
 
-    /// <summary>Build a context menu; null entries become separators.</summary>
+    /// <summary>Build a context menu; null entries become separators (never leading, trailing or doubled).</summary>
     public static ContextMenu Menu(params MenuItem?[] items)
     {
         var cm = new ContextMenu();
-        foreach (var i in items) cm.Items.Add(i ?? (object)new Separator());
+        foreach (var i in items)
+        {
+            if (i != null) cm.Items.Add(i);
+            else if (cm.Items.Count > 0 && cm.Items[^1] is not Separator) cm.Items.Add(new Separator());
+        }
+        if (cm.Items.Count > 0 && cm.Items[^1] is Separator) cm.Items.RemoveAt(cm.Items.Count - 1);
         return cm;
     }
 
@@ -134,7 +165,7 @@ public class Popover : Window
         Topmost = true;
         ResizeMode = ResizeMode.NoResize;
         SetResourceReference(FontFamilyProperty, "UiFont");
-        Deactivated += (_, _) => Hide();
+        Deactivated += (_, _) => Dismiss();
         SourceInitialized += (_, _) =>
         {
             Native.SetToolWindow(UI.Hwnd(this), false);
@@ -142,20 +173,45 @@ public class Popover : Window
         };
     }
 
-    public void Toggle() { if (IsVisible) Hide(); else Open(); }
+    /// <summary>Launchpad runs its own zoom instead.</summary>
+    protected virtual bool Animated => true;
+    /// <summary>Where the pop-in grows from: the top edge for panels that drop down from the menu bar.</summary>
+    protected virtual Point AnimationOrigin => new(0.5, 0);
+
+    int _shown; // bumped on every Open so a fade-out that's still running can't hide the reopened panel
+
+    public void Toggle() { if (IsVisible) Dismiss(); else Open(); }
 
     public void Open()
     {
+        _shown++;
         OnOpening();
         Show();
         UI.BringToFront(this);
+        if (Animated && Content is FrameworkElement root) UI.PopIn(root, origin: AnimationOrigin);
+    }
+
+    /// <summary>Close the way macOS panels do: a short fade, then hide.</summary>
+    public void Dismiss()
+    {
+        if (!IsVisible) return;
+        if (!Animated || Content is not FrameworkElement root) { Hide(); return; }
+        int shown = _shown;
+        var fade = new DoubleAnimation(0, TimeSpan.FromMilliseconds(120));
+        fade.Completed += (_, _) =>
+        {
+            if (shown != _shown) return;
+            Hide();
+            root.BeginAnimation(OpacityProperty, null);
+        };
+        root.BeginAnimation(OpacityProperty, fade);
     }
 
     protected virtual void OnOpening() { }
 
     protected override void OnKeyDown(KeyEventArgs e)
     {
-        if (e.Key == Key.Escape) Hide();
+        if (e.Key == Key.Escape) Dismiss();
         base.OnKeyDown(e);
     }
 }
@@ -181,6 +237,7 @@ public class MacWindow : Window
     public override void OnApplyTemplate()
     {
         base.OnApplyTemplate();
+        if (GetTemplateChild("PART_Root") is FrameworkElement opening) Loaded += (_, _) => UI.PopIn(opening, 0.94, ms: 220); // windows zoom open
         if (_glass && GetTemplateChild("PART_Root") is FrameworkElement root && GetTemplateChild("PART_Bg") is Border bg)
         {
             root.Margin = new Thickness(0); // the margin only made room for WPF's own drop shadow

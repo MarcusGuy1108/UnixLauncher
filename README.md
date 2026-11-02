@@ -14,8 +14,9 @@ Built with C# / WPF on .NET 10.
 |---|---|
 | **Menu bar** | Logo menu in Apple-menu order (About This PC, System Settings, App Store, Force Quit, Sleep / Restart / Shut Down, Lock, Log Out), with the launcher's own items at the end. Then the active app in bold, with About / Hide / Hide Others / Show All / Quit. Then **the app's own File / Edit / View… menus**, mirrored like the macOS global menu bar (classic Windows menu bars only), and a **Window** menu. On the right: battery, Wi-Fi, Spotlight, Control Centre, and a clock that opens Notification Centre. |
 | **Dock** | Pinned apps, folders and files, plus a dot under running apps. Running apps that aren't pinned get their own section, and the Recycle Bin sits at the end. **Left / Bottom / Right**, icon size, magnification and auto-hide. Drag icons to reorder them. Drop `.exe`, `.lnk` or folders from Explorer onto it to pin them. Clicking a running app brings it forward, as on macOS. Clicking a folder (e.g. Downloads) opens a **stack** of its newest items. Right-click an icon for its windows, Keep / Remove, Show in File Explorer, Hide, Quit and Force Quit. Right-click the shelf for dock options. |
-| **Finder** | A macOS-style file browser, first in the dock. Sidebar (Favourites, drives, Recycle Bin), back / forward, **Icons** and **List** views (sortable Name / Date Modified / Size / Kind columns), search in the current folder and below, path bar and status bar. **Space** for Quick Look (pictures, text, or a summary card). New Folder, Rename, Move to Recycle Bin, Get Info (Windows Properties), Open With, copy / cut / paste (works with Explorer's clipboard), drag and drop in, out and onto sidebar places. Copies and moves use Windows' own progress and "replace or skip" dialogs. Its menus show in the menu bar when it's in front, and also when the desktop is, as on macOS. Shortcuts: Ctrl+N new window, Ctrl+Shift+N new folder, F2 rename, Delete, Alt+Enter Get Info, Alt+←/→/↑ back / forward / enclosing folder, Ctrl+1/2 views, Ctrl+F search. |
-| **Window buttons** | The launcher's own windows have real traffic lights. A small overlay also adds working close / minimise / zoom dots to the title bar of whichever app is focused. Nothing is injected into other apps, and their own buttons stay put. |
+| **Finder** | A macOS-style file browser, first in the dock. Sidebar (Favourites, **This PC**, drives, **Recycle Bin**), back / forward, **Icons** and **List** views (sortable Name / Date Modified / Size / Kind columns), search in the current folder and below, path bar and status bar. **Space** for Quick Look (pictures, text, or a summary card). New Folder, Rename, Move to Recycle Bin, Get Info (Windows Properties), Open With, copy / cut / paste (works with Explorer's clipboard), drag and drop in, out and onto sidebar places. Copies and moves use Windows' own progress and "replace or skip" dialogs. **This PC** lists every drive with its free space, and the path bar starts there. **Recycle Bin** opens inside Finder, with Put Back, Delete Immediately and Empty; drag files onto it in the sidebar to trash them, and the dock's Recycle Bin opens it too. Its menus show in the menu bar when it's in front, and also when the desktop is, as on macOS. Shortcuts: Ctrl+N new window, Ctrl+Shift+N new folder, F2 rename, Delete, Alt+Enter Get Info, Alt+←/→/↑ back / forward / enclosing folder, Ctrl+1/2 views, Ctrl+F search. |
+| **Window buttons** | The launcher's own windows have real traffic lights. Other apps get working round close / minimise / zoom buttons on the left of the focused window's title bar, and Windows' own buttons on the right are covered in the title bar's colour (drag there to move the window; double-click to zoom). Buttons a window doesn't have show grey. It's all overlay windows: nothing is injected into other apps or changed about them. |
+| **Animations** | Panels fade and grow in and fade out; windows zoom open; dock icons magnify and settle back; launches bounce; Launchpad zooms; banners slide in. Menus are translucent with a real blur. |
 | **Control Centre** | macOS 26 layout of glass pills and circles: Wi-Fi (with the network name), Bluetooth, Nearby sharing, Now Playing, Focus, Task View, Screen Mirroring (Cast), display brightness (laptops), volume with sound output, and Dark Mode / Calculator / Timer / Screenshot buttons. **Edit Controls** opens its settings. Right-click a toggle to open its Windows settings page. |
 | **Notification Centre** | Mirrors every app's Windows notifications, with dismiss and Clear All, plus a calendar widget. |
 | **Spotlight** | **Alt+Space**. Search apps, do quick maths (`12*7`), search files, search the web. |
@@ -39,7 +40,7 @@ All off by default, and each can be switched back at any time, under **Settings 
 
 | Option | What changes |
 |---|---|
-| **Open folders in Finder** | Folders opened anywhere (desktop, Explorer, "Open folder" in other apps, drives) and **Win+E** open in Finder. It adds a per-user "open" action to folders and drives in the registry, the way other Explorer replacements do; switching it off removes only that action. |
+| **Open folders in Finder** | Folders, drives, **This PC** and the **Recycle Bin** open in Finder wherever they're opened from: the desktop, Explorer, "Open folder" in other apps. **Win+E** opens Finder too. It adds a per-user "open" action to folders, drives, This PC and the Recycle Bin in the registry, the way other Explorer replacements do. Switching it off removes only that action. |
 | **Windows key opens Launchpad** | A tap of the Windows key opens Launchpad instead of Start. Win + other keys (Win+D, Win+L, Win+Shift+S…) keep working. |
 | **Win+S opens Spotlight** | Win+S and Win+Q open Spotlight instead of Windows Search. |
 | **Win+A opens Control Centre** | Instead of Windows' Quick Settings. |
@@ -48,6 +49,32 @@ All off by default, and each can be switched back at any time, under **Settings 
 The keyboard options use a low-level keyboard hook. It only reacts to those Windows-key combinations, and
 it injects an unused key code so the Start menu doesn't also pop up. If you move `UnixLauncher.exe`, the
 folder option repairs its registry entry the next time the launcher starts.
+
+## Uninstalling
+
+Any of these does the same thing:
+
+- **Windows Settings › Apps › Installed apps › UnixLauncher › Uninstall**. UnixLauncher lists itself there
+  (per user, no admin rights needed).
+- **Launcher Settings › General › Uninstall…**
+- `UnixLauncher.exe --uninstall`. Add `--quiet` to skip the questions, e.g. from a script or from
+  Task Manager › Run new task if the desktop is broken.
+
+It quits the running launcher, then puts back everything it changed:
+
+| What it changed | How it's put back |
+|---|---|
+| Folders / drives / This PC / Recycle Bin open in Finder | Its "open" actions are removed, so File Explorer opens them again |
+| UnixLauncher as the Windows shell | The per-user `Shell` value is removed (only if it points at UnixLauncher), and Explorer is started straight away so you get your desktop and taskbar back without signing out |
+| Hidden taskbar | Shown again, with your original auto-hide setting restored |
+| Windows key and Win+E / S / A / N | Go back to Windows as soon as the launcher has quit (the keyboard hook only lives in its process) |
+| Start at sign-in | Removed |
+| Screen space for the menu bar and dock | Released |
+| Apps list entry, session marker | Removed |
+
+It then asks whether to delete your settings, custom icons and logs (`%AppData%\UnixLauncher`), and finally
+deletes its own program files. Only files with UnixLauncher's names are deleted; the folder is removed only
+if that leaves it empty. Dark Mode is left as you last set it, since that's a Windows setting you chose.
 
 ## Requirements
 
@@ -133,8 +160,11 @@ knowing:
 - Mirrored app menus only work for apps with a classic Windows menu bar (e.g. Notepad++, Registry
   Editor, older tools). Browsers, Store apps, Electron apps and Office draw their own, so they just
   get the Window menu. Those menus use Windows' own (dark) menu style.
-- Finder takes over folders only with *Open folders in Finder* switched on. Apps that start `explorer.exe`
-  directly, and special places such as This PC or Control Panel, still open File Explorer.
+- Finder takes over folders only with *Open folders in Finder* switched on. A few things still open File
+  Explorer: apps that start `explorer.exe` directly, "Open file location" / "Show in folder" in other apps
+  (Windows handles that inside Explorer), and other shell places such as Network and Control Panel.
+- Covering Windows' title bar buttons relies on reading the title bar's colour from the screen. Apps with
+  gradients or images there may show a slightly different patch.
   Finder has no column or gallery view, no tabs, and no tags. Its search walks the disk (up to 1000 results)
   rather than using the Windows Search index. "Show in File Explorer" in its right-click menu reaches
   everything else Windows offers (Send to, Compress, etc.).

@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using System.Linq;
 using System.Threading;
 using System.Windows;
 using System.Windows.Media;
@@ -24,11 +25,14 @@ public partial class App : Application
 
     protected override void OnStartup(StartupEventArgs e)
     {
+        // Windows Settings › Apps › Uninstall runs this; it must work even while another copy is running.
+        if (e.Args.Contains("--uninstall")) { Uninstaller.Run(quiet: e.Args.Contains("--quiet")); Shutdown(); return; }
+
         // "--open <folder>" comes from the folder handler (Settings › Windows Integration).
         int at = Array.IndexOf(e.Args, "--open");
         string? openFolder = at >= 0 && at + 1 < e.Args.Length ? e.Args[at + 1] : null;
 
-        _single = new Mutex(true, "UnixLauncher.SingleInstance", out _primary);
+        _single = new Mutex(true, InstanceMutex, out _primary);
         if (!_primary)
         {
             if (openFolder != null) SendToRunningCopy(openFolder);
@@ -41,6 +45,9 @@ public partial class App : Application
         AppDomain.CurrentDomain.UnhandledException += (_, ex) => { Log(ex.ExceptionObject); Sys.ShowTaskbar(); };
 
         Settings.Load();
+        EventManager.RegisterClassHandler(typeof(System.Windows.Controls.ContextMenu), System.Windows.Controls.ContextMenu.OpenedEvent,
+            new RoutedEventHandler((s, _) => UI.GlassMenu((System.Windows.Controls.ContextMenu)s)));
+        Sys.RegisterUninstaller(); // keeps the Apps list entry pointing at wherever this copy now lives
         Native.UseDarkMenus();
         Resources["UiFont"] = new FontFamily(Settings.Current.FontFamily);
 
@@ -93,7 +100,8 @@ public partial class App : Application
 
     public static void Quit() => Current.Shutdown();
 
-    public const string BarTitle = "UnixLauncher.MenuBar";
+    public const string BarTitle = "UnixLauncher.MenuBar", InstanceMutex = "UnixLauncher.SingleInstance";
+    public const int OpenMessage = 1, QuitMessage = 2; // WM_COPYDATA kinds sent to the running copy
 
     /// <summary>Hand a folder to the copy that's already running (its menu bar window receives WM_COPYDATA).</summary>
     static void SendToRunningCopy(string folder)
@@ -105,7 +113,7 @@ public partial class App : Application
         IntPtr text = System.Runtime.InteropServices.Marshal.StringToHGlobalUni(folder);
         try
         {
-            var data = new Native.COPYDATASTRUCT { dwData = new IntPtr(1), cbData = (folder.Length + 1) * 2, lpData = text };
+            var data = new Native.COPYDATASTRUCT { dwData = new IntPtr(OpenMessage), cbData = (folder.Length + 1) * 2, lpData = text };
             Native.SendCopyData(bar, Native.WM_COPYDATA, IntPtr.Zero, ref data);
         }
         finally { System.Runtime.InteropServices.Marshal.FreeHGlobal(text); }

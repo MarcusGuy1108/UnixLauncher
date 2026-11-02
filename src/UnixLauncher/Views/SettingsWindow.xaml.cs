@@ -66,6 +66,10 @@ public partial class SettingsWindow : MacWindow
         Group("About",
             Row("UnixLauncher", App.ShellMode ? "Running as the Windows shell." : "Running on top of Windows Explorer.", null),
             Row("Settings and logs", Settings.Dir, Btn("Open Folder", () => Process.Start("explorer.exe", $"\"{Settings.Dir}\"")))),
+        Group("Uninstall",
+            Row("Uninstall UnixLauncher", "Puts back everything it changed (File Explorer, the shell, the taskbar, keyboard shortcuts, " +
+                "start at sign-in) and removes it. Also available in Windows Settings › Apps.",
+                Btn("Uninstall…", () => Process.Start(Sys.ExePath, "--uninstall")))),
     };
 
     FrameworkElement[] Appearance() => new[]
@@ -120,6 +124,9 @@ public partial class SettingsWindow : MacWindow
             Group("Windows",
                 Row("Show red, yellow and green buttons on other apps' windows", "A small overlay on the focused window's title bar.",
                     Switch(s.TrafficLightOverlay, v => Set(x => x.TrafficLightOverlay = v))),
+                Row("Hide Windows' own title bar buttons", "Covers minimise, maximise and close on the right while the round buttons are shown. " +
+                    "Dragging there still moves the window.",
+                    Switch(s.HideCaptionButtons, v => Set(x => x.HideCaptionButtons = v))),
                 Row("Leave these apps alone", "Exe names, comma separated, e.g. chrome.exe, msedge.exe",
                     TextField(string.Join(", ", s.OverlayExclude),
                         t => Set(x => x.OverlayExclude = t.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToList())))),
@@ -133,7 +140,7 @@ public partial class SettingsWindow : MacWindow
         {
             Note("Replace Windows features", "Let UnixLauncher take over parts of Windows. Each can be switched back at any time."),
             Group(null,
-                Row("Open folders in Finder", "Folders you open anywhere, and Win+E, open in Finder instead of File Explorer.",
+                Row("Open folders in Finder", "Folders, drives, This PC and the Recycle Bin open in Finder instead of File Explorer, and so does Win+E.",
                     Switch(s.ReplaceExplorer, SetFinderAsFolderHandler), "#0A84FF", ""),
                 Row("Windows key opens Launchpad", "Instead of the Start menu. Win + other keys still work as usual.",
                     Switch(s.ReplaceStart, v => Set(x => x.ReplaceStart = v)), "#8E8E93", ""),

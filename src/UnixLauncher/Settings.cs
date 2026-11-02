@@ -24,6 +24,8 @@ public class Settings
     public bool DockAutoHide { get; set; }
     public bool HideWindowsTaskbar { get; set; } = true;
     public bool TrafficLightOverlay { get; set; } = true;
+    /// <summary>Cover Windows' own minimise/maximise/close buttons while the round ones are shown.</summary>
+    public bool HideCaptionButtons { get; set; } = true;
     /// <summary>Exe names (e.g. "chrome.exe") whose title bar the traffic-light overlay should leave alone.</summary>
     public List<string> OverlayExclude { get; set; } = new();
     public bool DoNotDisturb { get; set; }

@@ -7,7 +7,7 @@
     <!-- Background must be non-null so the gaps between dots still count as "hovering the group" -->
     <StackPanel Orientation="Horizontal" VerticalAlignment="Center" HorizontalAlignment="Left" Background="#01000000" Height="20">
         <Button Style="{StaticResource TrafficLight}" Background="#FF5F57" Content="×" ToolTip="Close" Click="Close_Click"/>
-        <Button Style="{StaticResource TrafficLight}" Background="#FEBC2E" Content="−" ToolTip="Minimise" Click="Min_Click"/>
-        <Button Style="{StaticResource TrafficLight}" Background="#28C840" Content="+" ToolTip="Zoom" Click="Zoom_Click"/>
+        <Button x:Name="MinBtn" Style="{StaticResource TrafficLight}" Background="#FEBC2E" Content="−" ToolTip="Minimise" Click="Min_Click"/>
+        <Button x:Name="ZoomBtn" Style="{StaticResource TrafficLight}" Background="#28C840" Content="+" ToolTip="Zoom" Click="Zoom_Click"/>
     </StackPanel>
 </Window>
