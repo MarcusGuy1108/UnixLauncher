@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Runtime.InteropServices;
@@ -10,17 +11,15 @@ using System.Windows.Threading;
 namespace UnixLauncher.Views;
 
 /// <summary>
-/// macOS window buttons for other apps: round red/yellow/green buttons pinned to the top-left of the focused window,
-/// and a cover in the title bar's own colour over Windows' minimise/maximise/close on the right. Both are separate
-/// topmost windows: nothing is injected into other apps and nothing about them is changed, so there's nothing to undo.
-/// shortcut: assumes a ~32px title bar; apps that draw tabs there (browsers) can be listed in OverlayExclude.
+/// macOS window buttons for other apps: round red/yellow/green buttons on the top-left of the focused window, or of any
+/// window whose corner you point at. A separate topmost window: nothing is injected into other apps.
+/// Windows' own buttons are hidden by <see cref="NativeButtons"/>.
+/// shortcut: assumes a ~32px title bar.
 /// </summary>
 public partial class TrafficLightOverlay : Window
 {
     const double CaptionHeight = 32;
-    IntPtr _hwnd, _target;
-    readonly Window _cover;
-    readonly Border _coverFill = new();
+    IntPtr _hwnd, _target, _hoverWin;
     readonly DispatcherTimer _resample = new() { Interval = TimeSpan.FromMilliseconds(300) };
     // Windows opening over the title bar (flyouts, dialogs, other apps' popups) send us no event, so look again now and then.
     readonly DispatcherTimer _recheck = new() { Interval = TimeSpan.FromMilliseconds(250) };
@@ -28,7 +27,7 @@ public partial class TrafficLightOverlay : Window
     // Pointer over the buttons' corner: show the pill. Polled, because hidden buttons let clicks through and so get no mouse events.
     readonly DispatcherTimer _hover = new() { Interval = TimeSpan.FromMilliseconds(40) };
     DateTime _lastOver;
-    bool _busy;      // the app draws something in that corner (a browser's first tab): buttons only on hover
+    bool _busy;      // the app draws something in that corner (a tab, its icon): buttons only on hover
     bool _revealed;  // the pill is showing
     bool _clickThrough;
 
@@ -37,22 +36,8 @@ public partial class TrafficLightOverlay : Window
         InitializeComponent();
         _hwnd = UI.Hwnd(this);
         Native.SetToolWindow(_hwnd, true);
-
-        _cover = new Window
-        {
-            WindowStyle = WindowStyle.None, AllowsTransparency = true, Background = Brushes.Transparent, Topmost = true,
-            ShowInTaskbar = false, ShowActivated = false, ResizeMode = ResizeMode.NoResize, Width = 1, Height = 1, Content = _coverFill,
-        };
-        Native.SetToolWindow(UI.Hwnd(_cover), true);
-        _cover.MouseLeftButtonDown += (_, e) =>
-        {
-            if (e.ClickCount == 2) { Zoom_Click(this, e); return; }
-            // Drag the real window from its covered title bar: the classic "move from here" system command.
-            Native.ReleaseCapture();
-            Native.PostMessage(_target, Native.WM_SYSCOMMAND, new IntPtr(0xF012), IntPtr.Zero);
-        };
-        // Title bars fade from inactive to active colour just after focus changes; sample again once it has settled.
-        _resample.Tick += (_, _) => { _resample.Stop(); _sampledFor = default; Track(_target); };
+        // Title bars change just after focus changes (and after their buttons go); look at the corner again once settled.
+        _resample.Tick += (_, _) => { _resample.Stop(); _sampledFor = default; Track(Native.GetForegroundWindow()); };
 
         Root.MouseLeftButtonDown += (_, e) =>
         {
@@ -67,49 +52,76 @@ public partial class TrafficLightOverlay : Window
         _recheck.Start();
         WindowEvents.Foreground += Track;
         WindowEvents.Moved += Track;
-        Settings.Changed += () => Track(Native.GetForegroundWindow());
+        Settings.Changed += () => { NativeButtons.RestoreAll(); Track(Native.GetForegroundWindow()); }; // re-applied below as needed
     }
 
+    /// <summary>Follow the focused window, or the background window whose corner the pointer is on.</summary>
     void Track(IntPtr fg)
     {
-        if (!Eligible(fg)) { _target = IntPtr.Zero; Hide(); _cover.Hide(); return; }
-        if (fg != _target) _resample.Start();
-        _target = fg;
-        long style = Native.Style(fg);
+        IntPtr w = _hoverWin != IntPtr.Zero && Native.IsWindow(_hoverWin) ? _hoverWin : fg;
+        if (!Eligible(w)) { _target = IntPtr.Zero; Hide(); return; }
+        if (Settings.Current.HideCaptionButtons) NativeButtons.Hide(w);
+        if (w != _target) _resample.Start();
+        _target = w;
+        long style = Native.Style(w);
         MinBtn.IsEnabled = (style & Native.WS_MINIMIZEBOX) != 0; // grey, as macOS shows buttons a window doesn't have
         ZoomBtn.IsEnabled = (style & Native.WS_MAXIMIZEBOX) != 0;
 
-        var r = Native.FrameBounds(fg);
+        var r = Native.FrameBounds(w);
         double s = UI.Scale(this);
         int x = r.Left + (int)(2 * s), y = r.Top + (int)((CaptionHeight - Height) / 2 * s); // dots start 12px in, as on macOS
-        var buttons = CaptionButtons(fg, style, r, s);
-        if (_sampledFor != (fg, buttons.Width, buttons.Height)) // new window or new size (maximise/restore): re-read its title bar colour
+        var area = new Native.RECT { Left = x, Top = y, Right = x + (int)(Width * s), Bottom = y + (int)(Height * s) };
+        if (_sampledFor != (w, r.Right - r.Left, r.Bottom - r.Top)) // new window or new size (maximise/restore)
         {
-            _sampledFor = (fg, buttons.Width, buttons.Height);
-            if (SampleTitleBar(buttons) is { } c) _coverFill.Background = new SolidColorBrush(c);
+            _sampledFor = (w, r.Right - r.Left, r.Bottom - r.Top);
             // If the app draws something in that corner (a tab, its icon, its title), the buttons wait for the pointer and
             // come with the pill; if the corner is empty (Discord), they stay. Painting over it never matched (Mica, tabs).
-            _busy = CornerBusy(new Native.RECT { Left = x, Top = y, Right = x + (int)(Width * s), Bottom = y + (int)(Height * s) }, s);
+            _busy = CornerBusy(area, s);
             ApplyReveal(animate: false);
         }
         // Never draw over something that is on top of the app (a flyout, a dialog, another window): the buttons belong under it.
-        var lights = new Native.RECT { Left = x, Top = y, Right = x + (int)(Width * s), Bottom = y + (int)(Height * s) };
-        if (Covered(fg, lights)) { Hide(); _cover.Hide(); return; }
+        if (Covered(w, area)) { Hide(); return; }
         if (!IsVisible) Show();
         Native.SetWindowPos(_hwnd, Native.HWND_TOPMOST, x, y, 0, 0, Native.SWP_NOSIZE | Native.SWP_NOACTIVATE | Native.SWP_SHOWWINDOW);
-        PlaceCover(style, buttons, r, s);
     }
 
     void HoverTick()
     {
-        if (!IsVisible) return;
         Native.GetCursorPos(out var p);
-        Native.GetWindowRect(_hwnd, out var r);
-        int pad = (int)(6 * UI.Scale(this));
-        bool over = p.X >= r.Left - pad && p.X < r.Right + pad && p.Y >= r.Top - pad && p.Y < r.Bottom + pad;
-        if (over) _lastOver = DateTime.Now;
-        bool want = over || (DateTime.Now - _lastOver).TotalMilliseconds < 350; // a moment's grace, so it doesn't flicker at the edge
-        if (want == _revealed) return;
+        double sc = UI.Scale(this);
+        DateTime now = DateTime.Now;
+
+        // macOS shows a background window's buttons when you point at them: move to the window under the pointer.
+        IntPtr under = Native.GetAncestor(Native.WindowFromPoint(p), 2), fg = Native.GetForegroundWindow(); // GA_ROOT
+        bool inCorner = false;
+        if (under != IntPtr.Zero && !RunningApps.IsOwn(under))
+        {
+            var fr = Native.FrameBounds(under);
+            inCorner = p.X >= fr.Left && p.X < fr.Left + 90 * sc && p.Y >= fr.Top && p.Y < fr.Top + CaptionHeight * sc;
+            if (inCorner && under != _target && under != fg && Eligible(under))
+            {
+                _hoverWin = under;
+                _lastOver = now;
+                Track(fg);
+            }
+        }
+
+        bool over = inCorner && under == _target;
+        if (IsVisible && Native.GetWindowRect(_hwnd, out var r))
+        {
+            int pad = (int)(6 * sc);
+            over |= p.X >= r.Left - pad && p.X < r.Right + pad && p.Y >= r.Top - pad && p.Y < r.Bottom + pad;
+        }
+        if (over) _lastOver = now;
+        bool want = over || (now - _lastOver).TotalMilliseconds < 350; // a moment's grace, so it doesn't flicker at the edge
+        if (!want && _hoverWin != IntPtr.Zero) // left a background window's corner: back to the focused window
+        {
+            _hoverWin = IntPtr.Zero;
+            _revealed = false;
+            Track(fg);
+            return;
+        }
+        if (!IsVisible || want == _revealed) return;
         _revealed = want;
         ApplyReveal(animate: true);
     }
@@ -175,43 +187,6 @@ public partial class TrafficLightOverlay : Window
         return false;
     }
 
-    void PlaceCover(long style, Native.RECT b, Native.RECT frame, double scale)
-    {
-        if (!Settings.Current.HideCaptionButtons || (style & Native.WS_SYSMENU) == 0) { _cover.Hide(); return; } // no buttons to hide
-        // Chromium/Electron draw their own buttons, at sizes Windows doesn't report: a cover never lines up, so they keep theirs.
-        if (IsChromium(_target)) { _cover.Hide(); return; }
-        // A cover trailing behind a window being dragged, or one placed from odd button bounds some apps report,
-        // lands on top of the app's content: only cover what is plainly the buttons in the top-right corner.
-        bool plausible = b.Height >= 16 * scale && b.Height <= 64 * scale && b.Width <= 46 * 4 * scale
-                      && Math.Abs(b.Top - frame.Top) <= 12 * scale && Math.Abs(b.Right - frame.Right) <= 16 * scale;
-        if (WindowEvents.MovingOrSizing || !plausible) { _cover.Hide(); return; }
-        if (!_cover.IsVisible) _cover.Show();
-        Native.SetWindowPos(UI.Hwnd(_cover), Native.HWND_TOPMOST, b.Left, b.Top, b.Width, b.Height, Native.SWP_NOACTIVATE | Native.SWP_SHOWWINDOW);
-    }
-
-    /// <summary>Screen rectangle of the window's minimise/maximise/close buttons.</summary>
-    static Native.RECT CaptionButtons(IntPtr h, long style, Native.RECT frame, double scale)
-    {
-        // DWM knows where it put them (relative to the window rect); apps that draw their own use the same spot.
-        if (Native.DwmGetWindowAttribute(h, 5, out Native.RECT rel, Marshal.SizeOf<Native.RECT>()) == 0 && rel.Width > 0 && rel.Height > 0
-            && Native.GetWindowRect(h, out var win))
-            return new Native.RECT { Left = win.Left + rel.Left, Top = win.Top + rel.Top, Right = win.Left + rel.Right, Bottom = win.Top + rel.Bottom };
-        int count = (style & (Native.WS_MINIMIZEBOX | Native.WS_MAXIMIZEBOX)) != 0 ? 3 : 1; // fallback: Windows' 46×32 buttons
-        return new Native.RECT { Right = frame.Right, Left = frame.Right - (int)(46 * count * scale), Top = frame.Top, Bottom = frame.Top + (int)(32 * scale) };
-    }
-
-    /// <summary>The title bar's colour just left of the buttons, read from the screen.</summary>
-    static Color? SampleTitleBar(Native.RECT buttons)
-    {
-        IntPtr dc = Native.GetDC(IntPtr.Zero);
-        try
-        {
-            uint c = Native.GetPixel(dc, buttons.Left - 6, buttons.Top + Math.Max(2, buttons.Height / 4));
-            return c == 0xFFFFFFFF ? null : Color.FromRgb((byte)c, (byte)(c >> 8), (byte)(c >> 16)); // COLORREF is 0x00BBGGRR
-        }
-        finally { Native.ReleaseDC(IntPtr.Zero, dc); }
-    }
-
     static bool IsChromium(IntPtr h) => Native.GetClass(h).StartsWith("Chrome_WidgetWin_");
 
     static bool Eligible(IntPtr h)
@@ -227,8 +202,75 @@ public partial class TrafficLightOverlay : Window
         return !Settings.Current.OverlayExclude.Any(x => string.Equals(x, exe, StringComparison.OrdinalIgnoreCase));
     }
 
-    void Close_Click(object sender, RoutedEventArgs e) => Native.SysCommand(_target, Native.SC_CLOSE);
+    void Close_Click(object sender, RoutedEventArgs e) => Native.PostMessage(_target, Native.WM_CLOSE, IntPtr.Zero, IntPtr.Zero); // works without a system menu too
     void Min_Click(object sender, RoutedEventArgs e) => Native.SysCommand(_target, Native.SC_MINIMIZE);
     void Zoom_Click(object sender, RoutedEventArgs e) =>
         Native.SysCommand(_target, Native.IsZoomed(_target) ? Native.SC_RESTORE : Native.SC_MAXIMIZE);
+}
+
+/// <summary>
+/// Hides Windows' own minimise / maximise / close the way Windows itself would: a window without a system menu
+/// (WS_SYSMENU) gets no caption buttons and no title bar icon, drawn natively, so there is nothing to line up or colour-match.
+/// The minimise/maximise abilities stay (snapping, Win+↑, double-click to zoom still work). Put back on quit, when the
+/// setting changes, and on the next start if the launcher didn't exit cleanly.
+/// Apps that draw their own buttons (browsers, Discord, Office, Terminal) aren't touched: it would change nothing there.
+/// </summary>
+static class NativeButtons
+{
+    static readonly HashSet<IntPtr> _hidden = new();
+    static string StateFile => Path.Combine(Settings.Dir, "hidden-window-buttons.txt");
+
+    public static void Hide(IntPtr h)
+    {
+        long style = Native.Style(h);
+        if ((style & Native.WS_SYSMENU) == 0 || (style & Native.WS_CAPTION) != Native.WS_CAPTION) return; // nothing to hide
+        if (Native.GetClass(h).StartsWith("Chrome_WidgetWin_")) return; // draws its own buttons
+        if (_hidden.Add(h)) Save();
+        SetStyle(h, style & ~Native.WS_SYSMENU);
+    }
+
+    public static void RestoreAll()
+    {
+        foreach (var h in _hidden) Restore(h);
+        _hidden.Clear();
+        Save();
+    }
+
+    /// <summary>After a crash: give the windows we changed their buttons back.</summary>
+    public static void RestoreLeftovers()
+    {
+        try
+        {
+            if (!File.Exists(StateFile)) return;
+            foreach (var line in File.ReadAllLines(StateFile))
+                if (long.TryParse(line, out long v)) Restore(new IntPtr(v));
+            File.Delete(StateFile);
+        }
+        catch (Exception ex) { App.Log(ex); }
+    }
+
+    static void Restore(IntPtr h)
+    {
+        if (!Native.IsWindow(h)) return;
+        long style = Native.Style(h);
+        if ((style & Native.WS_CAPTION) == Native.WS_CAPTION && (style & Native.WS_SYSMENU) == 0) SetStyle(h, style | Native.WS_SYSMENU);
+    }
+
+    static void SetStyle(IntPtr h, long style)
+    {
+        if (Native.Style(h) == style) return;
+        Native.SetWindowLongPtr(h, Native.GWL_STYLE, new IntPtr(style));
+        // Redraw the frame without moving, resizing, reordering or activating it.
+        Native.SetWindowPos(h, IntPtr.Zero, 0, 0, 0, 0, 0x20 | Native.SWP_NOMOVE | Native.SWP_NOSIZE | 0x4 | Native.SWP_NOACTIVATE); // FRAMECHANGED, NOZORDER
+    }
+
+    static void Save()
+    {
+        try
+        {
+            if (_hidden.Count == 0) File.Delete(StateFile);
+            else File.WriteAllLines(StateFile, _hidden.Select(h => h.ToInt64().ToString()));
+        }
+        catch (Exception ex) { App.Log(ex); }
+    }
 }

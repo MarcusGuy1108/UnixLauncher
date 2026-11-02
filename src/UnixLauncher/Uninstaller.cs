@@ -22,6 +22,7 @@ static class Uninstaller
             return;
 
         StopRunningCopy();
+        Views.NativeButtons.RestoreLeftovers(); // in case the launcher had stopped without putting apps' buttons back
         var failed = Sys.RevertSystemChanges();
         EnsureExplorer();
         Sys.ShowTaskbar(); // again now Explorer is surely up: restores the user's own auto-hide setting

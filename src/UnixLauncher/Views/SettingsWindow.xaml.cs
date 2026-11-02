@@ -125,8 +125,9 @@ public partial class SettingsWindow : MacWindow
             Group("Windows",
                 Row("Show red, yellow and green buttons on other apps' windows", "On the focused window's top-left corner. Where the app already has something there (a tab, its icon), they appear in a glass pill when you point at the corner.",
                     Switch(s.TrafficLightOverlay, v => Set(x => x.TrafficLightOverlay = v))),
-                Row("Hide Windows' own title bar buttons", "Covers minimise, maximise and close on the right while the round buttons are shown. " +
-                    "Dragging there still moves the window.",
+                Row("Hide Windows' own title bar buttons", "Takes minimise, maximise and close off apps' title bars, the way Windows does for " +
+                    "windows without them (snapping and Win+↑ still work). Put back when you switch this off or quit. Apps that draw their " +
+                    "own buttons (browsers, Discord, Office) keep theirs.",
                     Switch(s.HideCaptionButtons, v => Set(x => x.HideCaptionButtons = v))),
                 Row("Leave these apps alone", "No round title bar buttons, Alt-as-⌘ or Windows-key changes in these apps, e.g. games you play in a " +
                     "window or apps that use Alt+click. Exe names, comma separated, e.g. chrome.exe, blender.exe",

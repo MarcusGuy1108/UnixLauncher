@@ -42,12 +42,13 @@ public partial class App : Application
 
         // A shell must not die on one bad handler: log and keep going.
         DispatcherUnhandledException += (_, ex) => { Log(ex.Exception); ex.Handled = true; };
-        AppDomain.CurrentDomain.UnhandledException += (_, ex) => { Log(ex.ExceptionObject); Sys.ShowTaskbar(); };
+        AppDomain.CurrentDomain.UnhandledException += (_, ex) => { Log(ex.ExceptionObject); Sys.ShowTaskbar(); Views.NativeButtons.RestoreAll(); };
 
         Settings.Load();
         EventManager.RegisterClassHandler(typeof(System.Windows.Controls.ContextMenu), System.Windows.Controls.ContextMenu.OpenedEvent,
             new RoutedEventHandler((s, _) => UI.GlassMenu((System.Windows.Controls.ContextMenu)s)));
         Sys.RegisterUninstaller(); // keeps the Apps list entry pointing at wherever this copy now lives
+        Views.NativeButtons.RestoreLeftovers(); // if the last run didn't exit cleanly, apps get their title bar buttons back
         Native.UseDarkMenus();
         Resources["UiFont"] = new FontFamily(Settings.Current.FontFamily);
 
@@ -96,6 +97,7 @@ public partial class App : Application
         if (!_primary) return;
         WorkArea.ReleaseAll();
         Sys.ShowTaskbar();
+        Views.NativeButtons.RestoreAll();
         base.OnExit(e);
     }
 
