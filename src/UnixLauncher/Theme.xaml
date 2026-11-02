@@ -75,14 +75,27 @@
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="MenuItem">
-                    <Border x:Name="Bd" Background="Transparent" CornerRadius="8" Padding="6,4,14,4">
-                        <DockPanel>
-                            <TextBlock x:Name="Check" Text="✓" Width="16" DockPanel.Dock="Left" Visibility="Hidden"/>
-                            <TextBlock Text="{TemplateBinding InputGestureText}" DockPanel.Dock="Right" Margin="20,0,0,0" Foreground="{StaticResource SubText}"/>
-                            <ContentPresenter ContentSource="Header" RecognizesAccessKey="True"/>
-                        </DockPanel>
-                    </Border>
+                    <Grid>
+                        <Border x:Name="Bd" Background="Transparent" CornerRadius="8" Padding="6,4,14,4">
+                            <DockPanel>
+                                <TextBlock x:Name="Check" Text="✓" Width="16" DockPanel.Dock="Left" Visibility="Hidden"/>
+                                <TextBlock x:Name="Arrow" Text="›" DockPanel.Dock="Right" Margin="20,0,0,0" Visibility="Collapsed"/>
+                                <TextBlock Text="{TemplateBinding InputGestureText}" DockPanel.Dock="Right" Margin="20,0,0,0" Foreground="{StaticResource SubText}"/>
+                                <ContentPresenter ContentSource="Header" RecognizesAccessKey="True"/>
+                            </DockPanel>
+                        </Border>
+                        <!-- Submenus (Options ›, Move & Resize ›) open beside the item, like macOS -->
+                        <Popup x:Name="PART_Popup" IsOpen="{Binding IsSubmenuOpen, RelativeSource={RelativeSource TemplatedParent}}" Placement="Right"
+                               HorizontalOffset="6" VerticalOffset="-6" AllowsTransparency="True" Focusable="False" PopupAnimation="None">
+                            <Border Background="{StaticResource PanelBg}" BorderBrush="{StaticResource Line}" BorderThickness="1" CornerRadius="14" Padding="5" MinWidth="180">
+                                <ItemsPresenter/>
+                            </Border>
+                        </Popup>
+                    </Grid>
                     <ControlTemplate.Triggers>
+                        <Trigger Property="Role" Value="SubmenuHeader">
+                            <Setter TargetName="Arrow" Property="Visibility" Value="Visible"/>
+                        </Trigger>
                         <Trigger Property="IsHighlighted" Value="True">
                             <!-- macOS 27: a soft see-through highlight rather than a solid colour -->
                             <Setter TargetName="Bd" Property="Background" Value="#33FFFFFF"/>
@@ -200,6 +213,9 @@
         <Setter Property="BorderBrush" Value="#1FFFFFFF"/>
         <Setter Property="BorderThickness" Value="1"/>
     </Style>
+
+    <!-- Tint of macOS 27 floating glass pieces (Notification Centre cards, Spotlight, Apps) over the blurred desktop -->
+    <SolidColorBrush x:Key="FloatTint" Color="#A0262628"/>
 
     <!-- Content area of Finder and Settings (the sidebar shows the window's glass instead) -->
     <SolidColorBrush x:Key="ContentBg" Color="#1E1E1E"/>

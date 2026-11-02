@@ -102,7 +102,7 @@ static class UI
             if (w.Content is not Visual root) return; // also while hidden, so the clip is right before the first frame
             double s = Scale(w);
             var shapes = new List<(int l, int t, int r, int b, int rad)>();
-            CollectShapes(root, root, s, shapes);
+            CollectShapes(root, root, s, new Rect(-1e6, -1e6, 2e6, 2e6), shapes);
             if (shapes.Count == 0) return;
             string sig = string.Join(";", shapes);
             if (sig == last) return; // layout passes run all the time: only re-clip when a shape moved
@@ -118,20 +118,30 @@ static class UI
         };
     }
 
-    static void CollectShapes(Visual root, DependencyObject d, double s, List<(int, int, int, int, int)> shapes)
+    static void CollectShapes(Visual root, DependencyObject d, double s, Rect clip, List<(int, int, int, int, int)> shapes)
     {
         for (int i = 0; i < VisualTreeHelper.GetChildrenCount(d); i++)
         {
             var child = VisualTreeHelper.GetChild(d, i);
+            if (child is ScrollViewer sv && sv.ActualHeight > 0) // shapes scrolled out of view get no glass
+            {
+                var view = sv.TransformToAncestor(root).TransformBounds(new Rect(sv.RenderSize));
+                view.Intersect(clip);
+                if (view.IsEmpty) continue;
+                CollectShapes(root, child, s, view, shapes);
+                continue;
+            }
             if (child is FrameworkElement fe && !double.IsNaN(GetGlassRadius(fe)))
             {
                 if (fe.Visibility != Visibility.Visible || fe.ActualWidth == 0) continue;
                 var b = fe.TransformToAncestor(root).TransformBounds(new Rect(fe.RenderSize));
+                b.Intersect(clip);
+                if (b.IsEmpty || b.Height < 1) continue;
                 double rad = Math.Min(GetGlassRadius(fe), Math.Min(b.Width, b.Height) / 2);
                 shapes.Add(((int)Math.Round(b.Left * s), (int)Math.Round(b.Top * s), (int)Math.Round(b.Right * s), (int)Math.Round(b.Bottom * s), (int)Math.Round(rad * s)));
                 continue; // a shape's insides don't add shapes
             }
-            CollectShapes(root, child, s, shapes);
+            CollectShapes(root, child, s, clip, shapes);
         }
     }
 
@@ -222,6 +232,19 @@ static class UI
     }
 
     /// <summary>Build a context menu; null entries become separators (never leading, trailing or doubled).</summary>
+    /// <summary>A submenu item (macOS "Options ›"); null entries become separators, as in <see cref="Menu"/>.</summary>
+    public static MenuItem Sub(string header, params MenuItem?[] items)
+    {
+        var mi = new MenuItem { Header = header };
+        foreach (var i in items)
+        {
+            if (i != null) mi.Items.Add(i);
+            else if (mi.Items.Count > 0 && mi.Items[^1] is not Separator) mi.Items.Add(new Separator());
+        }
+        if (mi.Items.Count > 0 && mi.Items[^1] is Separator) mi.Items.RemoveAt(mi.Items.Count - 1);
+        return mi;
+    }
+
     public static ContextMenu Menu(params MenuItem?[] items)
     {
         var cm = new ContextMenu();

@@ -13,6 +13,10 @@ public class NotificationItem
 {
     public uint Id { get; init; }
     public string App { get; init; } = "";
+    public string Aumid { get; init; } = "";
+    /// <summary>The app's icon, from the installed-apps list (by AUMID, else by name), for macOS-style notification cards.</summary>
+    public System.Windows.Media.ImageSource? Icon =>
+        AppIndex.Apps.FirstOrDefault(a => (Aumid.Length > 0 && a.ParsingName == Aumid) || string.Equals(a.Name, App, StringComparison.OrdinalIgnoreCase))?.Icon;
     public string Title { get; init; } = "";
     public string Body { get; init; } = "";
     public DateTimeOffset Time { get; init; }
@@ -85,9 +89,11 @@ static class Notifications
             var texts = n.Notification.Visual.GetBinding(KnownNotificationBindings.ToastGeneric)?.GetTextElements().Select(t => t.Text).ToList() ?? new();
             string app;
             try { app = n.AppInfo.DisplayInfo.DisplayName; } catch { app = "App"; }
+            string aumid;
+            try { aumid = n.AppInfo.AppUserModelId; } catch { aumid = ""; }
             return new NotificationItem
             {
-                Id = n.Id, App = app, Time = n.CreationTime,
+                Id = n.Id, App = app, Aumid = aumid, Time = n.CreationTime,
                 Title = texts.FirstOrDefault() ?? app,
                 Body = string.Join("\n", texts.Skip(1)),
             };

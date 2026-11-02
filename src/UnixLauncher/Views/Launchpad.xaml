@@ -2,36 +2,39 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:local="clr-namespace:UnixLauncher.Views"
-        Title="Launchpad" Foreground="{StaticResource Text}" FontSize="13">
-    <Grid Background="#A0101012" MouseLeftButtonUp="Background_Click">
-        <DockPanel x:Name="Page" Margin="80,50,80,40" RenderTransformOrigin="0.5,0.5">
-            <Border DockPanel.Dock="Top" HorizontalAlignment="Center" Width="280" CornerRadius="8" Background="#33FFFFFF" Padding="10,6" Margin="0,0,0,30">
-                <DockPanel>
-                    <ContentControl x:Name="SearchIcon" Margin="0,0,8,0" VerticalAlignment="Center"/>
-                    <Grid>
-                        <TextBlock x:Name="Placeholder" Text="Search" FontSize="14" Foreground="{StaticResource SubText}" Margin="2,0,0,0" IsHitTestVisible="False"/>
-                        <TextBox x:Name="Query" Style="{StaticResource SearchBox}" FontSize="14" TextChanged="Query_Changed" PreviewKeyDown="Query_Keys"/>
-                    </Grid>
-                </DockPanel>
-            </Border>
-            <ScrollViewer VerticalScrollBarVisibility="Hidden">
+        Title="Apps" Width="828" SizeToContent="Height" Foreground="{StaticResource Text}" FontSize="13">
+    <!-- macOS 26/27 Apps (Launchpad's successor): an "Applications" capsule field over a rounded card of app icons,
+         each its own glass (UI.FloatingGlass). Typing filters; Return opens the first match. -->
+    <StackPanel x:Name="Page">
+        <Border HorizontalAlignment="Center" Width="520" Height="60" CornerRadius="30" Background="{StaticResource FloatTint}" Padding="22,0"
+                local:UI.GlassRadius="30">
+            <DockPanel VerticalAlignment="Center">
+                <ContentControl x:Name="SearchIcon" Margin="0,0,12,0" VerticalAlignment="Center"/>
+                <Grid>
+                    <TextBlock x:Name="Placeholder" Text="Applications" FontSize="20" Foreground="{StaticResource SubText}" Margin="2,0,0,0" IsHitTestVisible="False"/>
+                    <TextBox x:Name="Query" Style="{StaticResource SearchBox}" FontSize="20" TextChanged="Query_Changed" PreviewKeyDown="Query_Keys"/>
+                </Grid>
+            </DockPanel>
+        </Border>
+        <Border Height="520" Margin="0,12,0,0" CornerRadius="28" Background="{StaticResource FloatTint}" Padding="12,14" local:UI.GlassRadius="28">
+            <ScrollViewer VerticalScrollBarVisibility="Auto">
                 <ItemsControl x:Name="AppGrid">
                     <ItemsControl.ItemsPanel>
-                        <ItemsPanelTemplate><WrapPanel HorizontalAlignment="Center"/></ItemsPanelTemplate>
+                        <ItemsPanelTemplate><WrapPanel/></ItemsPanelTemplate>
                     </ItemsControl.ItemsPanel>
                     <ItemsControl.ItemTemplate>
                         <DataTemplate>
-                            <Button Style="{StaticResource FlatButton}" Width="136" Height="132" Tag="{Binding}"
+                            <Button Style="{StaticResource FlatButton}" Width="112" Height="108" Tag="{Binding}"
                                     Click="App_Click" MouseRightButtonUp="App_RightClick" ToolTip="{Binding Name}">
                                 <StackPanel HorizontalAlignment="Center">
-                                    <Image Source="{Binding Icon}" Width="72" Height="72"/>
-                                    <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis" HorizontalAlignment="Center" Margin="0,8,0,0" MaxWidth="120"/>
+                                    <Image Source="{Binding Icon}" Width="60" Height="60"/>
+                                    <TextBlock Text="{Binding Name}" FontSize="12" TextTrimming="CharacterEllipsis" HorizontalAlignment="Center" Margin="0,6,0,0" MaxWidth="100"/>
                                 </StackPanel>
                             </Button>
                         </DataTemplate>
                     </ItemsControl.ItemTemplate>
                 </ItemsControl>
             </ScrollViewer>
-        </DockPanel>
-    </Grid>
+        </Border>
+    </StackPanel>
 </local:Popover>

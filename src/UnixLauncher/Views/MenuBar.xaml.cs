@@ -320,8 +320,22 @@ public partial class MenuBar : Window
         {
             UI.Item("Minimise", () => Native.SysCommand(target, Native.SC_MINIMIZE), keys: UI.MacOnly("Alt+M")),
             UI.Item("Zoom", () => Native.SysCommand(target, Native.IsZoomed(target) ? Native.SC_RESTORE : Native.SC_MAXIMIZE)),
+            UI.Item("Fill", () => Place(target, 0, 0, 1, 1)),
+            UI.Item("Centre", () => Centre(target)),
+            null,
+            UI.Sub("Move & Resize",
+                UI.Item("Left", () => Place(target, 0, 0, 0.5, 1)),
+                UI.Item("Right", () => Place(target, 0.5, 0, 0.5, 1)),
+                UI.Item("Top", () => Place(target, 0, 0, 1, 0.5)),
+                UI.Item("Bottom", () => Place(target, 0, 0.5, 1, 0.5)),
+                null,
+                UI.Item("Top Left", () => Place(target, 0, 0, 0.5, 0.5)),
+                UI.Item("Top Right", () => Place(target, 0.5, 0, 0.5, 0.5)),
+                UI.Item("Bottom Left", () => Place(target, 0, 0.5, 0.5, 0.5)),
+                UI.Item("Bottom Right", () => Place(target, 0.5, 0.5, 0.5, 0.5))),
             null,
             UI.Item("Bring All to Front", () => { foreach (var w in Enumerable.Reverse(wins)) Native.Activate(w.Hwnd); }),
+            UI.Item("Cycle Through Windows", () => Native.Activate(wins[^1].Hwnd), enabled: wins.Count > 1, keys: UI.MacOnly("Alt+`")),
             null,
         };
         foreach (var w in wins)
@@ -332,6 +346,43 @@ public partial class MenuBar : Window
         items.Add(null);
         items.Add(UI.Item("Close Window", () => Native.SysCommand(target, Native.SC_CLOSE), keys: "Ctrl+W"));
         return UI.Menu(items.ToArray());
+    }
+
+    /// <summary>
+    /// macOS Window › Fill and Move &amp; Resize: put the window on a fraction of its screen's usable area (between the menu bar
+    /// and the dock). Windows' frames have invisible resize borders, so the visible frame is what gets placed.
+    /// </summary>
+    static void Place(IntPtr h, double fx, double fy, double fw, double fh)
+    {
+        if (WorkAreaOf(h) is not { } wa) return;
+        if (Native.IsZoomed(h) || Native.IsIconic(h)) Native.ShowWindow(h, Native.SW_RESTORE);
+        var (l, t, r, b) = Borders(h);
+        int W = wa.Right - wa.Left, H = wa.Bottom - wa.Top;
+        int x = wa.Left + (int)(W * fx), y = wa.Top + (int)(H * fy), w = (int)(W * fw), ht = (int)(H * fh);
+        Native.SetWindowPos(h, IntPtr.Zero, x - l, y - t, w + l + r, ht + t + b, 0x4 | Native.SWP_NOACTIVATE); // NOZORDER
+    }
+
+    static void Centre(IntPtr h)
+    {
+        if (WorkAreaOf(h) is not { } wa) return;
+        if (Native.IsZoomed(h)) Native.ShowWindow(h, Native.SW_RESTORE);
+        var f = Native.FrameBounds(h);
+        var (l, t, _, _) = Borders(h);
+        int x = wa.Left + (wa.Right - wa.Left - (f.Right - f.Left)) / 2, y = wa.Top + (wa.Bottom - wa.Top - (f.Bottom - f.Top)) / 2;
+        Native.SetWindowPos(h, IntPtr.Zero, x - l, y - t, 0, 0, Native.SWP_NOSIZE | 0x4 | Native.SWP_NOACTIVATE);
+    }
+
+    static Native.RECT? WorkAreaOf(IntPtr h)
+    {
+        var mi = new Native.MONITORINFO { cbSize = System.Runtime.InteropServices.Marshal.SizeOf<Native.MONITORINFO>() };
+        return Native.GetMonitorInfo(Native.MonitorFromWindow(h, 2), ref mi) ? mi.rcWork : null; // MONITOR_DEFAULTTONEAREST
+    }
+
+    static (int l, int t, int r, int b) Borders(IntPtr h)
+    {
+        Native.GetWindowRect(h, out var outer);
+        var vis = Native.FrameBounds(h);
+        return (vis.Left - outer.Left, vis.Top - outer.Top, outer.Right - vis.Right, outer.Bottom - vis.Bottom);
     }
 
     // ---------- Logo menu ----------
@@ -360,7 +411,7 @@ public partial class MenuBar : Window
             UI.Item($"Log Out {Environment.UserName}…", Sys.LogOut),
             null,
             UI.Item("Launcher Settings…", SettingsWindow.Open),
-            UI.Item("Launchpad", App.Launchpad.Toggle),
+            UI.Item("Apps", App.Launchpad.Toggle),
             .. taskbarItems,
             UI.Item(App.ShellMode ? "Quit Launcher and Start Explorer" : "Quit Launcher", QuitLauncher),
         ]), LogoBtn);

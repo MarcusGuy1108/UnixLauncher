@@ -10,9 +10,14 @@ namespace UnixLauncher.Views;
 
 public partial class NotificationCentre : Popover
 {
+    protected override bool UseGlass => false; // separate pieces of glass instead of one panel
+    protected override void AnimateIn(FrameworkElement root) => UI.PopIn(root, from: 1); // the clip follows layout: fade only
+    protected override void AnimateOut(FrameworkElement root, Action done) => UI.PopOut(root, done, to: 1);
+
     public NotificationCentre()
     {
         InitializeComponent();
+        UI.FloatingGlass(this);
         List.ItemsSource = Notifications.Items;
         Notifications.Changed += UpdateStatus;
         UpdateStatus();
@@ -23,8 +28,8 @@ public partial class NotificationCentre : Popover
         var wa = SystemParameters.WorkArea;
         Left = SystemParameters.PrimaryScreenWidth - Width - 12;
         Top = 34; // just under the menu bar
-        Height = Math.Max(400, wa.Bottom - Top - 8);
-        DateText.Text = DateTime.Now.ToString("dddd d MMMM");
+        MaxHeight = wa.Bottom - Top - 8; // grows with its cards, as on macOS; scrolls past the screen
+        DateText.Text = DateTime.Now.ToString("dddd d");
         BuildCalendar();
         UpdateStatus();
     }

@@ -5,6 +5,7 @@ using System.Collections.Specialized;
 using System.ComponentModel;
 using System.Diagnostics;
 using System.IO;
+using System.IO.Compression;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -554,7 +555,7 @@ public partial class FinderWindow : MacWindow
         catch (Exception ex) { MessageBox.Show(this, ex.Message, "Finder"); }
     }
 
-    static void MovePath(string from, string to, bool dir) { if (dir) Directory.Move(from, to); else File.Move(from, to); }
+    internal static void MovePath(string from, string to, bool dir) { if (dir) Directory.Move(from, to); else File.Move(from, to); }
 
     void MoveToTrash()
     {
@@ -611,8 +612,14 @@ public partial class FinderWindow : MacWindow
     void GetInfo()
     {
         if (Virtual && Files.SelectedItems.Count == 0) return;
-        var paths = Selected().Select(i => i.Path).DefaultIfEmpty(_current);
-        foreach (var p in paths) Native.SHObjectProperties(UI.Hwnd(this), 2, p, null); // SHOP_FILEPATH: Windows' Properties dialog
+        if (Virtual) // drives and Recycle Bin items: Windows' Properties dialog knows them best
+        {
+            foreach (var p in Selected().Select(i => i.Path)) Native.SHObjectProperties(UI.Hwnd(this), 2, p, null); // SHOP_FILEPATH
+            return;
+        }
+        var items = Selected();
+        if (items.Count == 0) { InfoWindow.Show(this, _current, null); return; }
+        foreach (var it in items.Take(10)) InfoWindow.Show(this, it.Path, it); // macOS opens one Info window per item
     }
 
     void ToggleQuickLook() => QuickLook.Toggle(this, Selected().FirstOrDefault()?.Path);
@@ -677,6 +684,53 @@ public partial class FinderWindow : MacWindow
         }
     });
 
+    /// <summary>macOS Duplicate: "name copy" beside each selected item.</summary>
+    void Duplicate()
+    {
+        if (Virtual || _searching) return;
+        Transfer(Selected().Select(i => i.Path).ToList(), _current, move: false); // copying into its own folder makes "name copy"
+    }
+
+    /// <summary>macOS Compress: one item → "name.zip", several → "Archive.zip", beside them.</summary>
+    void Compress()
+    {
+        if (Virtual || _searching) return;
+        var paths = Selected().Select(i => i.Path).ToList();
+        string dir = _current;
+        string baseName = paths.Count == 1 ? System.IO.Path.GetFileNameWithoutExtension(paths[0].TrimEnd('\\')) : "Archive";
+        string zip = System.IO.Path.Combine(dir, FileNames.Unique(baseName + ".zip", n => Exists(System.IO.Path.Combine(dir, n)), true));
+        RunFileOp(() =>
+        {
+            using var archive = System.IO.Compression.ZipFile.Open(zip, System.IO.Compression.ZipArchiveMode.Create);
+            foreach (var p in paths)
+            {
+                if (File.Exists(p)) { archive.CreateEntryFromFile(p, System.IO.Path.GetFileName(p)); continue; }
+                string root = System.IO.Path.GetDirectoryName(p.TrimEnd('\\'))!;
+                foreach (var f in Directory.EnumerateFiles(p, "*", System.IO.SearchOption.AllDirectories))
+                    archive.CreateEntryFromFile(f, System.IO.Path.GetRelativePath(root, f));
+            }
+        });
+    }
+
+    /// <summary>macOS Make Alias: a Windows shortcut named "name alias" beside each item.</summary>
+    void MakeAlias()
+    {
+        if (Virtual || _searching) return;
+        try
+        {
+            dynamic sh = Activator.CreateInstance(Type.GetTypeFromProgID("WScript.Shell")!)!;
+            foreach (var p in Selected().Select(i => i.Path))
+            {
+                string name = System.IO.Path.GetFileName(p.TrimEnd('\\')) + " alias";
+                string lnk = System.IO.Path.Combine(_current, FileNames.Unique(name + ".lnk", n => Exists(System.IO.Path.Combine(_current, n)), true));
+                var sc = sh.CreateShortcut(lnk);
+                sc.TargetPath = p;
+                sc.Save();
+            }
+        }
+        catch (Exception ex) { MessageBox.Show(this, ex.Message, "Finder"); }
+    }
+
     /// <summary>File operations run on their own thread so a long copy never freezes the dock and menu bar.</summary>
     static void RunFileOp(Action op)
     {
@@ -714,12 +768,14 @@ public partial class FinderWindow : MacWindow
             null,
             UI.Item("Move to Recycle Bin", MoveToTrash, keys: "Ctrl+Backspace"),
             null,
+            // Same order as macOS Finder's menu.
             UI.Item("Get Info", GetInfo, keys: "Ctrl+I"),
-            UI.Item("Rename…", Rename, enabled: one, keys: "F2"),
-            UI.Item($"Quick Look “{first.DisplayName}”", ToggleQuickLook, keys: "Space"),
-            null,
+            UI.Item("Rename", Rename, enabled: one, keys: "F2"),
+            UI.Item(one ? $"Compress “{first.DisplayName}”" : $"Compress {sel.Count} Items", Compress),
+            UI.Item("Duplicate", Duplicate, keys: UI.MacOnly("Ctrl+D")),
+            UI.Item("Make Alias", MakeAlias),
+            UI.Item("Quick Look", ToggleQuickLook, keys: "Space"),
             UI.Item("Copy", () => CopySelected(false), keys: "Ctrl+C"),
-            UI.Item("Cut", () => CopySelected(true), keys: "Ctrl+X"),
             null,
         };
         if (_searching) items.Add(UI.Item("Show in Enclosing Folder", () => { Navigate(System.IO.Path.GetDirectoryName(first.Path)!); Select(first.Path); }));
@@ -1058,6 +1114,7 @@ public partial class FinderWindow : MacWindow
             (Key.Delete, false, _) => MoveToTrash,
             (Key.Space, false, _) => ToggleQuickLook,
             (Key.C, true, false) => () => CopySelected(false),
+            (Key.D, true, false) => Duplicate,                // ⌘D
             (Key.X, true, false) => () => CopySelected(true),
             (Key.V, true, false) => Paste,
             (Key.A, true, false) => () => Files.SelectAll(),

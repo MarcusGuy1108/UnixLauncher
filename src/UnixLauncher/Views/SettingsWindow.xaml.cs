@@ -173,7 +173,7 @@ public partial class SettingsWindow : MacWindow
             Group(null,
                 Row("Open folders in Finder", "Folders, drives, This PC and the Recycle Bin open in Finder instead of File Explorer, and so does Win+E.",
                     Switch(s.ReplaceExplorer, SetFinderAsFolderHandler), "#0A84FF", ""),
-                Row("Windows key opens Launchpad", "Instead of the Start menu. Win + other keys still work as usual.",
+                Row("Windows key opens Apps", "Instead of the Start menu. Win + other keys still work as usual.",
                     Switch(s.ReplaceStart, v => Set(x => x.ReplaceStart = v)), "#8E8E93", ""),
                 Row("Win+S opens Spotlight", "Instead of Windows Search (Win+Q too). Alt+Space always opens Spotlight.",
                     Switch(s.ReplaceSearch, v => Set(x => x.ReplaceSearch = v)), "#8E8E93", ""),

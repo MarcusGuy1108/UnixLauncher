@@ -394,42 +394,46 @@ public partial class DockWindow : Window
             return UI.Menu(UI.Item("Open", () => FinderWindow.Open(FinderWindow.TrashPath)),
                            UI.Item("Empty Recycle Bin", Sys.EmptyTrash, enabled: Sys.TrashHasItems()));
 
+        // macOS dock menu: the app's windows (✓ the one in front), New Window, Options ›, Show All Windows, Hide, Quit.
         var wins = WindowsFor(e);
+        IntPtr front = Native.GetForegroundWindow();
         var items = new List<MenuItem?>();
         foreach (var w in wins)
         {
             var hwnd = w.Hwnd;
-            items.Add(UI.Item(w.Title.Length > 60 ? w.Title[..60] + "…" : w.Title, () => Native.Activate(hwnd)));
+            items.Add(UI.Item(w.Title.Length > 60 ? w.Title[..60] + "…" : w.Title, () => Native.Activate(hwnd), isChecked: hwnd == front));
         }
-        if (wins.Count > 0) items.Add(null);
+        items.Add(null);
 
         string? launch = e.Pin?.Launch ?? wins.FirstOrDefault()?.Exe;
         if (e.Pin?.Launch != "::launchpad" && launch != null)
             items.Add(UI.Item(wins.Count > 0 ? "New Window" : "Open", () => Sys.Launch(launch)));
-        if (e.Pin != null)
-        {
-            var pin = e.Pin;
-            items.Add(UI.Item("Remove from Dock", () => { S.Pinned.Remove(pin); Settings.Save(); }));
-        }
-        else items.Add(UI.Item("Keep in Dock", () => { S.Pinned.Add(RunningApps.ToPin(wins[0])); Settings.Save(); }, enabled: wins.Count > 0));
+        items.Add(null);
 
-        string? path = wins.FirstOrDefault()?.Exe ?? e.Pin?.Launch;
-        if (path != null && (File.Exists(path) || Directory.Exists(path)))
-            items.Add(UI.Item("Show in Finder", () => Sys.ShowInFinder(path)));
+        var pin = e.Pin;
+        string? path = wins.FirstOrDefault()?.Exe ?? pin?.Launch;
+        items.Add(UI.Sub("Options",
+            pin != null
+                ? UI.Item("Keep in Dock", () => { S.Pinned.Remove(pin); Settings.Save(); }, isChecked: true, enabled: pin.Launch != "::finder") // Finder always stays
+                : UI.Item("Keep in Dock", () => { S.Pinned.Add(RunningApps.ToPin(wins[0])); Settings.Save(); }, enabled: wins.Count > 0),
+            path != null && (File.Exists(path) || Directory.Exists(path)) ? UI.Item("Show in Finder", () => Sys.ShowInFinder(path)) : null));
+        items.Add(null);
 
-        if (wins.Count > 0 && e.Pin?.Launch == "::finder")
+        if (wins.Count > 0)
         {
-            items.Add(null);
-            items.Add(UI.Item("Hide", () => { foreach (var f in FinderWindow.All) f.Minimise(); }));
-            items.Add(UI.Item("Quit", () => { foreach (var f in FinderWindow.All.ToList()) f.Close(); }));
-        }
-        else if (wins.Count > 0)
-        {
-            var (key, hwnd, title) = (wins[0].Key, wins[0].Hwnd, RunningApps.DisplayName(wins[0]));
-            items.Add(null);
-            items.Add(UI.Item("Hide", () => MenuBar.HideApp(key)));
-            items.Add(UI.Item("Quit", () => MenuBar.QuitApp(key)));
-            items.Add(UI.Item("Force Quit", () => MenuBar.ForceQuit(hwnd, title))); // macOS shows this with ⌥ held
+            items.Add(UI.Item("Show All Windows", () => { foreach (var w in Enumerable.Reverse(wins)) Native.Activate(w.Hwnd); }));
+            if (pin?.Launch == "::finder")
+            {
+                items.Add(UI.Item("Hide", () => { foreach (var f in FinderWindow.All) f.Minimise(); }));
+                items.Add(UI.Item("Quit", () => { foreach (var f in FinderWindow.All.ToList()) f.Close(); }));
+            }
+            else
+            {
+                var (key, hwnd, title) = (wins[0].Key, wins[0].Hwnd, RunningApps.DisplayName(wins[0]));
+                items.Add(UI.Item("Hide", () => MenuBar.HideApp(key)));
+                items.Add(UI.Item("Quit", () => MenuBar.QuitApp(key)));
+                items.Add(UI.Item("Force Quit", () => MenuBar.ForceQuit(hwnd, title))); // macOS shows this with ⌥ held
+            }
         }
         return UI.Menu(items.ToArray());
     }

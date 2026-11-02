@@ -11,43 +11,28 @@ namespace UnixLauncher.Views;
 /// <summary>Full-screen grid of every installed app, with search.</summary>
 public partial class Launchpad : Popover
 {
-    protected override bool UseGlass => false; // full-screen: the plain rectangular blur fits it
+    protected override bool UseGlass => false; // a field and a card, each its own glass
 
     public Launchpad()
     {
         InitializeComponent();
-        SearchIcon.Content = UI.Icon("search", "", 13);
-        SourceInitialized += (_, _) => Native.EnableBlur(UI.Hwnd(this));
+        UI.FloatingGlass(this);
+        SearchIcon.Content = UI.Icon("search", "", 16);
         Activated += (_, _) => Keyboard.Focus(Query);
         AppIndex.Loaded += Filter;
     }
 
     protected override void OnOpening()
     {
-        Left = 0; Top = 0;
-        Width = SystemParameters.PrimaryScreenWidth;
-        Height = SystemParameters.PrimaryScreenHeight;
+        Left = (SystemParameters.PrimaryScreenWidth - Width) / 2;
+        Top = SystemParameters.PrimaryScreenHeight * 0.14;
         Query.Text = "";
         Filter();
     }
 
-    // macOS: the grid settles in from slightly larger while the backdrop fades in, and zooms back out on close.
-    protected override void AnimateIn(FrameworkElement root) => Zoom(1.08, 1, 0, 1, EasingMode.EaseOut, null);
-    protected override void AnimateOut(FrameworkElement root, Action done) => Zoom(1, 1.08, 1, 0, EasingMode.EaseIn, done);
-
-    void Zoom(double fromScale, double toScale, double fromOpacity, double toOpacity, EasingMode easing, Action? done)
-    {
-        if (!UI.Motion) { BeginAnimation(OpacityProperty, null); done?.Invoke(); return; }
-        var dur = TimeSpan.FromMilliseconds(220);
-        var ease = new CubicEase { EasingMode = easing };
-        var zoom = new ScaleTransform();
-        Page.RenderTransform = zoom;
-        zoom.BeginAnimation(ScaleTransform.ScaleXProperty, new DoubleAnimation(fromScale, toScale, dur) { EasingFunction = ease });
-        zoom.BeginAnimation(ScaleTransform.ScaleYProperty, new DoubleAnimation(fromScale, toScale, dur) { EasingFunction = ease });
-        var fade = new DoubleAnimation(fromOpacity, toOpacity, dur);
-        if (done != null) fade.Completed += (_, _) => { done(); BeginAnimation(OpacityProperty, null); };
-        BeginAnimation(OpacityProperty, fade);
-    }
+    // The glass follows the layout, not a scale animation: fade in and out.
+    protected override void AnimateIn(FrameworkElement root) => UI.PopIn(root, from: 1);
+    protected override void AnimateOut(FrameworkElement root, Action done) => UI.PopOut(root, done, to: 1);
 
     void Filter()
     {
@@ -85,8 +70,4 @@ public partial class Launchpad : Popover
         menu.IsOpen = true;
     }
 
-    void Background_Click(object sender, MouseButtonEventArgs e)
-    {
-        if (e.OriginalSource == sender) Dismiss(); // empty space, like macOS
-    }
 }

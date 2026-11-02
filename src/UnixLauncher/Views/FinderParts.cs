@@ -126,3 +126,152 @@ static class Prompt
         return w.ShowDialog() == true ? box.Text.Trim() : null;
     }
 }
+
+/// <summary>
+/// macOS Get Info: a small panel per item. Header with icon, name, size and date; sections that fold away (General,
+/// Name &amp; Extension); everything else Windows knows is one button away in its Properties dialog.
+/// </summary>
+static class InfoWindow
+{
+    public static void Show(Window owner, string path, FileItem? item)
+    {
+        bool dir = Directory.Exists(path);
+        FileSystemInfo info = dir ? new DirectoryInfo(path) : new FileInfo(path);
+        if (!info.Exists) return;
+        var sub = (Brush)Application.Current.Resources["SubText"];
+        string name = Path.GetFileName(path.TrimEnd('\\'));
+        if (name.Length == 0) name = path;
+        long bytes = dir ? -1 : ((FileInfo)info).Length;
+
+        var root = new StackPanel { Width = 300, Margin = new Thickness(0, -6, 0, 0) };
+
+        // Header: icon, name, size, modified
+        var head = new DockPanel { Margin = new Thickness(0, 0, 0, 10) };
+        var icon = new Image { Width = 40, Height = 40, Margin = new Thickness(0, 0, 10, 0), Source = item?.Icon ?? Icons.ShellUncached(path) };
+        DockPanel.SetDock(icon, Dock.Left);
+        head.Children.Add(icon);
+        var sizeText = new TextBlock { FontWeight = FontWeights.SemiBold, Text = dir ? "" : FileFormat.Size(bytes), VerticalAlignment = VerticalAlignment.Top };
+        DockPanel.SetDock(sizeText, Dock.Right);
+        head.Children.Add(sizeText);
+        var titles = new StackPanel();
+        titles.Children.Add(new TextBlock { Text = name, FontWeight = FontWeights.SemiBold, TextTrimming = TextTrimming.CharacterEllipsis });
+        titles.Children.Add(new TextBlock { Text = "Modified: " + FileFormat.Date(info.LastWriteTime, DateTime.Now), Foreground = sub, FontSize = 11 });
+        head.Children.Add(titles);
+        root.Children.Add(head);
+
+        // General
+        var general = new Grid { Margin = new Thickness(18, 2, 0, 6) };
+        general.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(80) });
+        general.ColumnDefinitions.Add(new ColumnDefinition());
+        void Row(string label, UIElement value)
+        {
+            int r = general.RowDefinitions.Count;
+            general.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+            var l = new TextBlock { Text = label + ":", Foreground = sub, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 1, 8, 1) };
+            Grid.SetRow(l, r);
+            Grid.SetRow(value, r); Grid.SetColumn(value, 1);
+            general.Children.Add(l); general.Children.Add(value);
+        }
+        TextBlock Val(string t) => new() { Text = t, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 1, 0, 1) };
+        string Full(DateTime d) => $"{d:d MMMM yyyy} at {d:t}";
+        Row("Kind", Val(item?.Kind is { Length: > 0 } k ? k : dir ? "Folder" : "Document"));
+        var sizeVal = Val(dir ? "Calculating…" : $"{bytes:N0} bytes ({FileFormat.Size(bytes)})");
+        Row("Size", sizeVal);
+        string parent = Path.GetDirectoryName(path.TrimEnd('\\')) ?? "";
+        Row("Where", Val(parent.Replace("\\", " ▸ ").TrimEnd(' ', '▸')));
+        Row("Created", Val(Full(info.CreationTime)));
+        Row("Modified", Val(Full(info.LastWriteTime)));
+        if (!dir)
+        {
+            var locked = new CheckBox { Content = "Locked", Foreground = (Brush)Application.Current.Resources["Text"], Margin = new Thickness(0, 6, 0, 0),
+                                        IsChecked = info.Attributes.HasFlag(FileAttributes.ReadOnly) };
+            locked.Click += (_, _) =>
+            {
+                try { info.Attributes = locked.IsChecked == true ? info.Attributes | FileAttributes.ReadOnly : info.Attributes & ~FileAttributes.ReadOnly; }
+                catch (Exception ex) { MessageBox.Show(ex.Message, "Get Info"); locked.IsChecked = !locked.IsChecked; }
+            };
+            Row("", locked);
+        }
+        root.Children.Add(Section("General:", general));
+
+        // Name & Extension: edit to rename
+        var nameBox = new TextBox { Text = name, Margin = new Thickness(18, 4, 0, 6), Padding = new Thickness(4, 3, 4, 3) };
+        string current = path;
+        void Commit()
+        {
+            string want = nameBox.Text.Trim();
+            string now = Path.GetFileName(current.TrimEnd('\\'));
+            if (want == now || want.Length == 0) { nameBox.Text = now; return; }
+            if (FileNames.Problem(want) is { } problem) { MessageBox.Show(problem, "Get Info"); nameBox.Text = now; return; }
+            string dest = Path.Combine(Path.GetDirectoryName(current.TrimEnd('\\'))!, want);
+            try
+            {
+                if (string.Equals(want, now, StringComparison.OrdinalIgnoreCase)) // case-only change: via a temporary name
+                {
+                    string tmp = dest + ".renaming";
+                    FinderWindow.MovePath(current, tmp, dir);
+                    FinderWindow.MovePath(tmp, dest, dir);
+                }
+                else FinderWindow.MovePath(current, dest, dir);
+                current = dest;
+            }
+            catch (Exception ex) { MessageBox.Show(ex.Message, "Get Info"); nameBox.Text = now; }
+        }
+        nameBox.KeyDown += (_, e) => { if (e.Key == Key.Enter) Commit(); };
+        nameBox.LostFocus += (_, _) => Commit();
+        root.Children.Add(Section("Name & Extension:", nameBox));
+
+        var more = new Button { Content = "More in Windows Properties…", Style = (Style)Application.Current.Resources["FlatButton"],
+                                HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(10, 4, 0, 0) };
+        root.Children.Add(more);
+
+        var w = new MacWindow { Title = name, SizeToContent = SizeToContent.Height, Width = 340, ShowInTaskbar = false, Content = root,
+                                WindowStartupLocation = WindowStartupLocation.Manual };
+        // Cascade beside the Finder window, as macOS places Info windows.
+        w.Left = owner.Left + owner.ActualWidth - 40 + (InfoCount % 8) * 22;
+        w.Top = owner.Top + 40 + (InfoCount++ % 8) * 22;
+        more.Click += (_, _) => Native.SHObjectProperties(UI.Hwnd(w), 2, current, null);
+        w.Show();
+
+        if (dir) // folder sizes take a walk of the disk: fill in when known
+            System.Threading.Tasks.Task.Run(() =>
+            {
+                long total = 0; int count = 0;
+                try
+                {
+                    foreach (var f in new DirectoryInfo(path).EnumerateFiles("*", new EnumerationOptions { RecurseSubdirectories = true }))
+                    { total += f.Length; count++; }
+                }
+                catch { /* unreadable folder: show what was counted */ }
+                return (total, count);
+            }).ContinueWith(t => w.Dispatcher.BeginInvoke(() =>
+            {
+                sizeVal.Text = $"{t.Result.total:N0} bytes ({FileFormat.Size(t.Result.total)}) for {t.Result.count:N0} items";
+                sizeText.Text = FileFormat.Size(t.Result.total);
+            }));
+    }
+
+    static int InfoCount;
+
+    /// <summary>A macOS Info section: a chevron header that folds its contents away.</summary>
+    static UIElement Section(string title, UIElement body)
+    {
+        var chevron = new TextBlock { Text = "⌄", Width = 14, Margin = new Thickness(0, -3, 4, 0) };
+        var header = new StackPanel { Orientation = Orientation.Horizontal };
+        header.Children.Add(chevron);
+        header.Children.Add(new TextBlock { Text = title, FontWeight = FontWeights.SemiBold });
+        var toggle = new Button { Content = header, Style = (Style)Application.Current.Resources["FlatButton"], HorizontalAlignment = HorizontalAlignment.Stretch,
+                                  HorizontalContentAlignment = HorizontalAlignment.Left, Padding = new Thickness(2, 3, 2, 3) };
+        toggle.Click += (_, _) =>
+        {
+            bool open = body.Visibility == Visibility.Visible;
+            body.Visibility = open ? Visibility.Collapsed : Visibility.Visible;
+            chevron.Text = open ? "›" : "⌄";
+        };
+        var section = new StackPanel { Margin = new Thickness(0, 2, 0, 0) };
+        section.Children.Add(new Border { Height = 1, Background = (Brush)Application.Current.Resources["Line"], Margin = new Thickness(0, 0, 0, 4) });
+        section.Children.Add(toggle);
+        section.Children.Add(body);
+        return section;
+    }
+}
