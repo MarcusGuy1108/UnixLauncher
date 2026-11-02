@@ -90,6 +90,22 @@ static class Native
     [DllImport("dwmapi.dll")] public static extern int DwmSetWindowAttribute(IntPtr h, int attr, ref int v, int size);
     [DllImport("user32.dll")] public static extern IntPtr DefWindowProc(IntPtr h, int msg, IntPtr w, IntPtr l);
     [DllImport("user32.dll")] public static extern IntPtr SendMessage(IntPtr h, int msg, IntPtr w, IntPtr l);
+    [DllImport("user32.dll", EntryPoint = "SendMessageTimeoutW")] public static extern IntPtr SendMessageTimeout(IntPtr h, uint msg, IntPtr w, IntPtr l, uint flags, uint timeout, out IntPtr result);
+    [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr h);
+    [DllImport("user32.dll")] public static extern IntPtr GetMenu(IntPtr h);
+    [DllImport("user32.dll")] public static extern int GetMenuItemCount(IntPtr menu);
+    [DllImport("user32.dll")] public static extern IntPtr GetSubMenu(IntPtr menu, int pos);
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)] public static extern int GetMenuString(IntPtr menu, uint item, StringBuilder sb, int max, uint flags);
+    [DllImport("user32.dll")] public static extern int TrackPopupMenuEx(IntPtr menu, uint flags, int x, int y, IntPtr owner, IntPtr tpm);
+    [DllImport("uxtheme.dll", EntryPoint = "#135")] static extern int SetPreferredAppMode(int mode);
+    [DllImport("uxtheme.dll", EntryPoint = "#136")] static extern void FlushMenuThemes();
+
+    /// <summary>Dark native (Win32) menus, used for the apps' own mirrored menus. Undocumented, Windows 10 1903+.</summary>
+    public static void UseDarkMenus()
+    {
+        try { SetPreferredAppMode(2); FlushMenuThemes(); } // 2 = ForceDark
+        catch { /* older Windows: menus just stay light */ }
+    }
     [DllImport("ole32.dll")] public static extern int PropVariantClear(ref PROPVARIANT pv);
 
     // ---- Blur behind (undocumented but stable since Windows 10) ----
@@ -200,9 +216,10 @@ static class Native
         SwitchToThisWindow(h, true);
     }
 
-    public static void PressWinKey()
+    /// <summary>Press a key combination, e.g. PressKeys(0x5B) = Win, PressKeys(0x5B, 0x4B) = Win+K.</summary>
+    public static void PressKeys(params byte[] vks)
     {
-        keybd_event(0x5B, 0, 0, IntPtr.Zero);     // VK_LWIN down
-        keybd_event(0x5B, 0, 0x2, IntPtr.Zero);   // up
+        foreach (var vk in vks) keybd_event(vk, 0, 0, IntPtr.Zero);
+        for (int i = vks.Length - 1; i >= 0; i--) keybd_event(vks[i], 0, 0x2, IntPtr.Zero); // KEYEVENTF_KEYUP
     }
 }

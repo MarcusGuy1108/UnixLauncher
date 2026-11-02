@@ -89,6 +89,17 @@ public static class CommandLine
     }
 }
 
+public static class MenuText
+{
+    /// <summary>Win32 menu caption → display text: drop the shortcut after a tab and the &amp; accelerator marks.</summary>
+    public static string Clean(string raw)
+    {
+        int tab = raw.IndexOf('\t');
+        if (tab >= 0) raw = raw[..tab];
+        return raw.Replace("&&", "\0").Replace("&", "").Replace("\0", "&").Trim();
+    }
+}
+
 public static class CalendarMath
 {
     /// <summary>Month grid cells: leading blanks (null) so day 1 falls under its weekday, then 1..last day.</summary>

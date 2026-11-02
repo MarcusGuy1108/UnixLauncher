@@ -90,9 +90,9 @@ static class UI
         };
     }
 
-    public static MenuItem Item(string header, Action action, bool enabled = true, bool isChecked = false)
+    public static MenuItem Item(string header, Action action, bool enabled = true, bool isChecked = false, string keys = "")
     {
-        var mi = new MenuItem { Header = header, IsEnabled = enabled, IsChecked = isChecked };
+        var mi = new MenuItem { Header = header, IsEnabled = enabled, IsChecked = isChecked, InputGestureText = keys };
         mi.Click += (_, _) => action();
         return mi;
     }

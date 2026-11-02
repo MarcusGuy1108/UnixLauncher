@@ -12,10 +12,10 @@ Built with C# / WPF on .NET 10.
 
 | Feature | What it does |
 |---|---|
-| **Menu bar** | Logo menu (About This PC, System Settings, Launcher Settings, App Store, Launchpad, Start Menu, Force Quit, Sleep / Restart / Shut Down, Lock, Log Out). Then the active app's name in bold, with an app menu (Minimise, Zoom, Close Window, Show in File Explorer, Quit, Force Quit). On the right: battery, Wi-Fi, Spotlight, Control Centre, and a clock that opens Notification Centre. |
-| **Dock** | Pinned apps, folders and files, plus a dot under running apps. Running apps that aren't pinned get their own section, and the Recycle Bin sits at the end. **Left / Bottom / Right**, icon size, magnification and auto-hide. Drag icons to reorder them. Drop `.exe`, `.lnk` or folders from Explorer onto it to pin them. Right-click an icon for its windows, Keep / Remove, Show in File Explorer and Quit. Right-click the shelf for dock options. |
+| **Menu bar** | Logo menu in Apple-menu order (About This PC, System Settings, App Store, Force Quit, Sleep / Restart / Shut Down, Lock, Log Out), with the launcher's own items at the end. Then the active app in bold, with About / Hide / Hide Others / Show All / Quit. Then **the app's own File / Edit / View… menus**, mirrored like the macOS global menu bar (classic Windows menu bars only), and a **Window** menu. On the right: battery, Wi-Fi, Spotlight, Control Centre, and a clock that opens Notification Centre. |
+| **Dock** | Pinned apps, folders and files, plus a dot under running apps. Running apps that aren't pinned get their own section, and the Recycle Bin sits at the end. **Left / Bottom / Right**, icon size, magnification and auto-hide. Drag icons to reorder them. Drop `.exe`, `.lnk` or folders from Explorer onto it to pin them. Clicking a running app brings it forward, as on macOS. Clicking a folder (e.g. Downloads) opens a **stack** of its newest items. Right-click an icon for its windows, Keep / Remove, Show in File Explorer, Hide, Quit and Force Quit. Right-click the shelf for dock options. |
 | **Window buttons** | The launcher's own windows have real traffic lights. A small overlay also adds working close / minimise / zoom dots to the title bar of whichever app is focused. Nothing is injected into other apps, and their own buttons stay put. |
-| **Control Centre** | Wi-Fi and Bluetooth radio toggles, Focus, Dark Mode, display brightness (laptops), volume, and Now Playing (any app using Windows media controls). Right-click a tile to open its Windows settings page. |
+| **Control Centre** | macOS layout: Wi-Fi and Bluetooth card, Focus, Dark Mode and Screen Mirroring (Windows Cast) tiles, display brightness (laptops), volume, and Now Playing (any app using Windows media controls). Right-click a tile to open its Windows settings page. |
 | **Notification Centre** | Mirrors every app's Windows notifications, with dismiss and Clear All, plus a calendar widget. |
 | **Spotlight** | **Alt+Space**. Search apps, do quick maths (`12*7`), search files, search the web. |
 | **Launchpad** | Full-screen grid of every installed app (desktop and Store), with search. Right-click › Add to Dock. |
@@ -102,6 +102,9 @@ knowing:
   on the Focus tile.
 - The Win key still opens the Windows Start menu (on-top mode).
 - Spotlight's hotkey is fixed to Alt+Space, so it clashes with PowerToys Run if you use that.
+- Mirrored app menus only work for apps with a classic Windows menu bar (e.g. Notepad++, Registry
+  Editor, older tools). Browsers, Store apps, Electron apps and Office draw their own, so they just
+  get the Window menu. Those menus use Windows' own (dark) menu style.
 - The launcher UI is dark-only.
 - Frosted glass behind the dock, panels and launcher windows needs **Windows 11 22H2 or later**,
   which provides the blur and rounded corners. On older Windows the menu bar and Launchpad are still

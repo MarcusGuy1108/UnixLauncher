@@ -166,6 +166,13 @@
                             <ContentPresenter Margin="20,4,20,20"/>
                         </DockPanel>
                     </Grid>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsActive" Value="False">
+                            <Setter TargetName="PART_Close" Property="Background" Value="#57575B"/>
+                            <Setter TargetName="PART_Min" Property="Background" Value="#57575B"/>
+                            <Setter TargetName="PART_Zoom" Property="Background" Value="#57575B"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
                 </ControlTemplate>
             </Setter.Value>
         </Setter>
@@ -174,11 +181,12 @@
     <!-- Control Centre toggle tile -->
     <Style x:Key="Tile" TargetType="ToggleButton">
         <Setter Property="Foreground" Value="{StaticResource Text}"/>
+        <Setter Property="Background" Value="{StaticResource CardBg}"/>
         <Setter Property="Focusable" Value="False"/>
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="ToggleButton">
-                    <Border Background="{StaticResource CardBg}" CornerRadius="12" Padding="10,8">
+                    <Border Background="{TemplateBinding Background}" CornerRadius="12" Padding="10,8">
                         <DockPanel>
                             <Border x:Name="Dot" Width="28" Height="28" CornerRadius="14" Background="#40FFFFFF" DockPanel.Dock="Left" Margin="0,0,10,0">
                                 <ContentPresenter Content="{TemplateBinding Tag}" HorizontalAlignment="Center" VerticalAlignment="Center"/>
@@ -196,7 +204,32 @@
         </Setter>
     </Style>
 
-    <!-- Thick white macOS slider -->
+    <!-- Small square Control Centre tile: icon above a short label -->
+    <Style x:Key="SmallTile" TargetType="ToggleButton">
+        <Setter Property="Foreground" Value="{StaticResource Text}"/>
+        <Setter Property="Focusable" Value="False"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="ToggleButton">
+                    <Border Background="{StaticResource CardBg}" CornerRadius="12" Padding="4,8">
+                        <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+                            <Border x:Name="Dot" Width="28" Height="28" CornerRadius="14" Background="#40FFFFFF" Margin="0,0,0,4">
+                                <ContentPresenter Content="{TemplateBinding Tag}" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                            </Border>
+                            <ContentPresenter HorizontalAlignment="Center"/>
+                        </StackPanel>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsChecked" Value="True">
+                            <Setter TargetName="Dot" Property="Background" Value="{StaticResource Accent}"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- Thick white macOS slider; Tag = glyph drawn inside the track (sun, speaker) -->
     <Style x:Key="MacSlider" TargetType="Slider">
         <Setter Property="Minimum" Value="0"/>
         <Setter Property="Maximum" Value="100"/>
@@ -205,6 +238,7 @@
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="Slider">
+                    <Grid>
                     <Border Height="22" CornerRadius="11" Background="#33FFFFFF" ClipToBounds="True">
                         <Track x:Name="PART_Track">
                             <Track.DecreaseRepeatButton>
@@ -230,6 +264,9 @@
                             </Track.Thumb>
                         </Track>
                     </Border>
+                    <TextBlock Text="{TemplateBinding Tag}" FontFamily="{StaticResource GlyphFont}" FontSize="11" Foreground="#8C000000"
+                               Margin="7,0,0,0" HorizontalAlignment="Left" VerticalAlignment="Center" IsHitTestVisible="False"/>
+                    </Grid>
                 </ControlTemplate>
             </Setter.Value>
         </Setter>

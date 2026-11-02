@@ -32,6 +32,7 @@ public partial class App : Application
         AppDomain.CurrentDomain.UnhandledException += (_, ex) => { Log(ex.ExceptionObject); Sys.ShowTaskbar(); };
 
         Settings.Load();
+        Native.UseDarkMenus();
         Resources["UiFont"] = new FontFamily(Settings.Current.FontFamily);
 
         ShellMode = Native.FindWindow("Shell_TrayWnd", null) == IntPtr.Zero;

@@ -4,11 +4,14 @@
         xmlns:local="clr-namespace:UnixLauncher.Views"
         Title="Launchpad" Foreground="{StaticResource Text}" FontSize="13">
     <Grid Background="#A0101012" MouseLeftButtonUp="Background_Click">
-        <DockPanel Margin="80,50,80,40">
+        <DockPanel x:Name="Page" Margin="80,50,80,40" RenderTransformOrigin="0.5,0.5">
             <Border DockPanel.Dock="Top" HorizontalAlignment="Center" Width="280" CornerRadius="8" Background="#33FFFFFF" Padding="10,6" Margin="0,0,0,30">
                 <DockPanel>
                     <ContentControl x:Name="SearchIcon" Margin="0,0,8,0" VerticalAlignment="Center"/>
-                    <TextBox x:Name="Query" Style="{StaticResource SearchBox}" FontSize="14" TextChanged="Query_Changed" PreviewKeyDown="Query_Keys"/>
+                    <Grid>
+                        <TextBlock x:Name="Placeholder" Text="Search" FontSize="14" Foreground="{StaticResource SubText}" Margin="2,0,0,0" IsHitTestVisible="False"/>
+                        <TextBox x:Name="Query" Style="{StaticResource SearchBox}" FontSize="14" TextChanged="Query_Changed" PreviewKeyDown="Query_Keys"/>
+                    </Grid>
                 </DockPanel>
             </Border>
             <ScrollViewer VerticalScrollBarVisibility="Hidden">

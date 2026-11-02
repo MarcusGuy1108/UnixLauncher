@@ -104,3 +104,12 @@ public class CalendarMathTests
 
     [Fact] public void LeapFebruaryHas29Days() => Assert.Equal(29, CalendarMath.Cells(2028, 2, DayOfWeek.Sunday).Max());
 }
+
+public class MenuTextTests
+{
+    [Theory]
+    [InlineData("&File", "File")]
+    [InlineData("Save &As...\tCtrl+S", "Save As...")]
+    [InlineData("Tom && Jerry", "Tom & Jerry")]
+    public void Cleans(string raw, string expected) => Assert.Equal(expected, MenuText.Clean(raw));
+}

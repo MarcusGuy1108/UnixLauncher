@@ -274,6 +274,7 @@ public partial class DockWindow : Window
     void Click(Entry e, FrameworkElement visual)
     {
         if (e.Trash) { Sys.Launch("shell:RecycleBinFolder"); return; }
+        if (e.Pin != null && Directory.Exists(e.Pin.Launch)) { StackPopover.Toggle(e.Pin.Launch, visual, Edge); return; }
         var wins = WindowsFor(e);
         if (wins.Count == 0)
         {
@@ -282,14 +283,8 @@ public partial class DockWindow : Window
             Sys.Launch(e.Pin.Launch);
             return;
         }
-        var fg = Native.GetForegroundWindow();
-        if (wins.Any(w => w.Hwnd == fg))
-        {
-            // Already in front: cycle through its windows, or minimise a single one.
-            if (wins.Count > 1) Native.Activate(wins[^1].Hwnd);
-            else Native.SysCommand(fg, Native.SC_MINIMIZE);
-        }
-        else Native.Activate(wins[0].Hwnd);
+        // macOS: bring the app forward (never minimise it); minimised windows return only if nothing else is open.
+        Native.Activate((wins.FirstOrDefault(w => !Native.IsIconic(w.Hwnd)) ?? wins[0]).Hwnd);
     }
 
     void Bounce(FrameworkElement visual)
@@ -343,9 +338,11 @@ public partial class DockWindow : Window
 
         if (wins.Count > 0)
         {
-            var key = wins[0].Key;
+            var (key, hwnd, title) = (wins[0].Key, wins[0].Hwnd, RunningApps.DisplayName(wins[0]));
             items.Add(null);
+            items.Add(UI.Item("Hide", () => MenuBar.HideApp(key)));
             items.Add(UI.Item("Quit", () => MenuBar.QuitApp(key)));
+            items.Add(UI.Item("Force Quit", () => MenuBar.ForceQuit(hwnd, title))); // macOS shows this with ⌥ held
         }
         return UI.Menu(items.ToArray());
     }

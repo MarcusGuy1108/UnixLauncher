@@ -7,7 +7,10 @@
         <StackPanel>
             <DockPanel Margin="6,2">
                 <ContentControl x:Name="SearchIcon" DockPanel.Dock="Left" Margin="0,0,12,0" VerticalAlignment="Center"/>
-                <TextBox x:Name="Query" Style="{StaticResource SearchBox}" FontSize="22" TextChanged="Query_Changed" PreviewKeyDown="Query_Keys"/>
+                <Grid>
+                    <TextBlock x:Name="Placeholder" Text="Spotlight Search" FontSize="22" Foreground="{StaticResource SubText}" Margin="2,0,0,0" IsHitTestVisible="False"/>
+                    <TextBox x:Name="Query" Style="{StaticResource SearchBox}" FontSize="22" TextChanged="Query_Changed" PreviewKeyDown="Query_Keys"/>
+                </Grid>
             </DockPanel>
             <ListBox x:Name="Results" Background="Transparent" BorderThickness="0" Margin="0,8,0,0" Visibility="Collapsed"
                      ItemContainerStyle="{StaticResource ResultItem}" ScrollViewer.HorizontalScrollBarVisibility="Disabled"

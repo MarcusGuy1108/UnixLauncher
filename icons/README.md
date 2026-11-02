@@ -31,6 +31,7 @@ Segoe Fluent / MDL2 glyph.
 | `bluetooth`          | Control Centre Bluetooth tile                      | Bluetooth glyph        |
 | `focus`              | Control Centre Focus tile + menu bar (when on)     | Moon glyph             |
 | `dark-mode`          | Control Centre Dark Mode tile                      | ◐                      |
+| `screen-mirroring`   | Control Centre Screen Mirroring tile               | Monitor glyph          |
 | `battery`            | Menu bar battery (laptops)                         | Battery level glyph    |
 | `battery-charging`   | Menu bar battery while charging                    | Charging glyph         |
 | `media-previous`     | Control Centre Now Playing                         | ⏮ glyph               |

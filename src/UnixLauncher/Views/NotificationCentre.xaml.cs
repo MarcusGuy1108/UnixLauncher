@@ -3,6 +3,7 @@ using System.Globalization;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
+using System.Windows.Media.Animation;
 using System.Windows.Threading;
 
 namespace UnixLauncher.Views;
@@ -96,6 +97,11 @@ static class Banner
         w.Closed += (_, _) => { if (_current == w) _current = null; };
         _current = w;
         w.Show();
+        // Slide in from the right edge like a macOS banner.
+        w.BeginAnimation(Window.LeftProperty, new DoubleAnimation(SystemParameters.PrimaryScreenWidth, w.Left, TimeSpan.FromMilliseconds(280))
+        {
+            EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut },
+        });
 
         var timer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(5) };
         timer.Tick += (_, _) => { timer.Stop(); w.Close(); };

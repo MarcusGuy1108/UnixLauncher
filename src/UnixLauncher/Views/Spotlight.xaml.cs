@@ -27,6 +27,7 @@ public partial class Spotlight : Popover
 
     void Query_Changed(object sender, TextChangedEventArgs e)
     {
+        Placeholder.Visibility = Query.Text.Length == 0 ? Visibility.Visible : Visibility.Hidden;
         string q = Query.Text.Trim();
         var list = new List<SearchResult>();
         if (Calc.TryEvaluate(q, out var value))

@@ -3,6 +3,7 @@ using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
+using System.Windows.Media;
 using System.Windows.Media.Animation;
 
 namespace UnixLauncher.Views;
@@ -28,7 +29,14 @@ public partial class Launchpad : Popover
         Height = SystemParameters.PrimaryScreenHeight;
         Query.Text = "";
         Filter();
-        BeginAnimation(OpacityProperty, new DoubleAnimation(0, 1, TimeSpan.FromMilliseconds(150)));
+        // macOS: the grid settles in from slightly larger while the backdrop fades in.
+        var dur = TimeSpan.FromMilliseconds(220);
+        var ease = new CubicEase { EasingMode = EasingMode.EaseOut };
+        var zoom = new ScaleTransform();
+        Page.RenderTransform = zoom;
+        zoom.BeginAnimation(ScaleTransform.ScaleXProperty, new DoubleAnimation(1.08, 1, dur) { EasingFunction = ease });
+        zoom.BeginAnimation(ScaleTransform.ScaleYProperty, new DoubleAnimation(1.08, 1, dur) { EasingFunction = ease });
+        BeginAnimation(OpacityProperty, new DoubleAnimation(0, 1, dur));
     }
 
     void Filter()
@@ -37,7 +45,11 @@ public partial class Launchpad : Popover
         AppGrid.ItemsSource = q.Length == 0 ? AppIndex.Apps : AppSearch.Filter(AppIndex.Apps, a => a.Name, q, int.MaxValue);
     }
 
-    void Query_Changed(object sender, TextChangedEventArgs e) => Filter();
+    void Query_Changed(object sender, TextChangedEventArgs e)
+    {
+        Placeholder.Visibility = Query.Text.Length == 0 ? Visibility.Visible : Visibility.Hidden;
+        Filter();
+    }
 
     void Query_Keys(object sender, KeyEventArgs e)
     {

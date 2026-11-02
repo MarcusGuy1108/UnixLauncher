@@ -5,37 +5,52 @@
         Width="320" SizeToContent="Height" Title="Control Centre" Foreground="{StaticResource Text}" FontSize="13">
     <Border Background="{StaticResource PanelBg}" BorderBrush="{StaticResource Line}" BorderThickness="1" CornerRadius="16" Padding="10">
         <StackPanel>
-            <!-- Tiles: left-click toggles, right-click opens the matching Windows settings page -->
-            <UniformGrid Columns="2" Rows="2">
-                <ToggleButton x:Name="WifiTile" Style="{StaticResource Tile}" Margin="0,0,5,5" Click="Wifi_Click"
-                              MouseRightButtonUp="OpenSettings" CommandParameter="ms-settings:network-wifi" ToolTip="Right-click for settings">
-                    <StackPanel><TextBlock Text="Wi-Fi" FontWeight="SemiBold"/><TextBlock x:Name="WifiSub" Foreground="{StaticResource SubText}" FontSize="11"/></StackPanel>
-                </ToggleButton>
-                <ToggleButton x:Name="FocusTile" Style="{StaticResource Tile}" Margin="5,0,0,5" Click="Focus_Click"
-                              MouseRightButtonUp="OpenSettings" CommandParameter="ms-settings:notifications" ToolTip="Right-click for settings">
-                    <StackPanel><TextBlock Text="Focus" FontWeight="SemiBold"/><TextBlock x:Name="FocusSub" Foreground="{StaticResource SubText}" FontSize="11"/></StackPanel>
-                </ToggleButton>
-                <ToggleButton x:Name="BtTile" Style="{StaticResource Tile}" Margin="0,5,5,0" Click="Bluetooth_Click"
-                              MouseRightButtonUp="OpenSettings" CommandParameter="ms-settings:bluetooth" ToolTip="Right-click for settings">
-                    <StackPanel><TextBlock Text="Bluetooth" FontWeight="SemiBold"/><TextBlock x:Name="BtSub" Foreground="{StaticResource SubText}" FontSize="11"/></StackPanel>
-                </ToggleButton>
-                <ToggleButton x:Name="DarkTile" Style="{StaticResource Tile}" Margin="5,5,0,0" Click="Dark_Click"
-                              MouseRightButtonUp="OpenSettings" CommandParameter="ms-settings:colors" ToolTip="Right-click for settings">
-                    <StackPanel><TextBlock Text="Dark Mode" FontWeight="SemiBold"/><TextBlock x:Name="DarkSub" Foreground="{StaticResource SubText}" FontSize="11"/></StackPanel>
-                </ToggleButton>
-            </UniformGrid>
+            <!-- macOS layout: connectivity card on the left; Focus and two small tiles on the right.
+                 Left-click toggles, right-click opens the matching Windows settings page. -->
+            <Grid>
+                <Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition/></Grid.ColumnDefinitions>
+                <Border Background="{StaticResource CardBg}" CornerRadius="12" Padding="0,4" Margin="0,0,5,0">
+                    <StackPanel VerticalAlignment="Center">
+                        <ToggleButton x:Name="WifiTile" Style="{StaticResource Tile}" Background="Transparent" Click="Wifi_Click"
+                                      MouseRightButtonUp="OpenSettings" CommandParameter="ms-settings:network-wifi" ToolTip="Right-click for settings">
+                            <StackPanel><TextBlock Text="Wi-Fi" FontWeight="SemiBold"/><TextBlock x:Name="WifiSub" Foreground="{StaticResource SubText}" FontSize="11"/></StackPanel>
+                        </ToggleButton>
+                        <ToggleButton x:Name="BtTile" Style="{StaticResource Tile}" Background="Transparent" Click="Bluetooth_Click"
+                                      MouseRightButtonUp="OpenSettings" CommandParameter="ms-settings:bluetooth" ToolTip="Right-click for settings">
+                            <StackPanel><TextBlock Text="Bluetooth" FontWeight="SemiBold"/><TextBlock x:Name="BtSub" Foreground="{StaticResource SubText}" FontSize="11"/></StackPanel>
+                        </ToggleButton>
+                    </StackPanel>
+                </Border>
+                <Grid Grid.Column="1" Margin="5,0,0,0">
+                    <Grid.RowDefinitions><RowDefinition/><RowDefinition/></Grid.RowDefinitions>
+                    <ToggleButton x:Name="FocusTile" Style="{StaticResource Tile}" Margin="0,0,0,5" Click="Focus_Click"
+                                  MouseRightButtonUp="OpenSettings" CommandParameter="ms-settings:notifications" ToolTip="Right-click for settings">
+                        <StackPanel><TextBlock Text="Focus" FontWeight="SemiBold"/><TextBlock x:Name="FocusSub" Foreground="{StaticResource SubText}" FontSize="11"/></StackPanel>
+                    </ToggleButton>
+                    <UniformGrid Grid.Row="1" Columns="2" Margin="0,5,0,0">
+                        <ToggleButton x:Name="DarkTile" Style="{StaticResource SmallTile}" Margin="0,0,5,0" Click="Dark_Click"
+                                      MouseRightButtonUp="OpenSettings" CommandParameter="ms-settings:colors" ToolTip="Right-click for settings">
+                            <TextBlock Text="Dark Mode" FontSize="10" TextAlignment="Center" TextWrapping="Wrap"/>
+                        </ToggleButton>
+                        <ToggleButton x:Name="MirrorTile" Style="{StaticResource SmallTile}" Margin="5,0,0,0" Click="Mirror_Click"
+                                      MouseRightButtonUp="OpenSettings" CommandParameter="ms-settings:display" ToolTip="Cast to a wireless display (Win+K)">
+                            <TextBlock Text="Screen Mirroring" FontSize="10" TextAlignment="Center" TextWrapping="Wrap"/>
+                        </ToggleButton>
+                    </UniformGrid>
+                </Grid>
+            </Grid>
 
             <Border x:Name="DisplayCard" Background="{StaticResource CardBg}" CornerRadius="12" Padding="12,8,12,12" Margin="0,10,0,0">
                 <StackPanel>
                     <TextBlock Text="Display" FontWeight="SemiBold" Margin="0,0,0,8"/>
-                    <Slider x:Name="BrightnessSlider" Style="{StaticResource MacSlider}"/>
+                    <Slider x:Name="BrightnessSlider" Style="{StaticResource MacSlider}" Tag="&#xE706;"/>
                 </StackPanel>
             </Border>
 
             <Border x:Name="SoundCard" Background="{StaticResource CardBg}" CornerRadius="12" Padding="12,8,12,12" Margin="0,10,0,0">
                 <StackPanel>
                     <TextBlock Text="Sound" FontWeight="SemiBold" Margin="0,0,0,8"/>
-                    <Slider x:Name="VolumeSlider" Style="{StaticResource MacSlider}"/>
+                    <Slider x:Name="VolumeSlider" Style="{StaticResource MacSlider}" Tag="&#xE767;"/>
                 </StackPanel>
             </Border>
 

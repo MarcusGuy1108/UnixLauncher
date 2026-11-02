@@ -19,6 +19,7 @@ public partial class ControlCentre : Popover
         BtTile.Tag = UI.Icon("bluetooth", "", 14);
         FocusTile.Tag = UI.Icon("focus", "", 14);
         DarkTile.Tag = UI.Icon("dark-mode", "◐", 14);
+        MirrorTile.Tag = UI.Icon("screen-mirroring", "\uE7F4", 14);
         PrevBtn.Content = UI.Icon("media-previous", "", 14);
         NextBtn.Content = UI.Icon("media-next", "", 14);
 
@@ -46,7 +47,6 @@ public partial class ControlCentre : Popover
         FocusTile.IsChecked = Settings.Current.DoNotDisturb;
         FocusSub.Text = Settings.Current.DoNotDisturb ? "On" : "Off";
         DarkTile.IsChecked = Appearance.IsDark;
-        DarkSub.Text = Appearance.IsDark ? "On" : "Off";
 
         var vol = Volume.Get();
         SoundCard.Visibility = vol == null ? Visibility.Collapsed : Visibility.Visible;
@@ -92,7 +92,13 @@ public partial class ControlCentre : Popover
     void Dark_Click(object sender, RoutedEventArgs e)
     {
         Appearance.SetDark(DarkTile.IsChecked == true);
-        DarkSub.Text = DarkTile.IsChecked == true ? "On" : "Off";
+    }
+
+    void Mirror_Click(object sender, RoutedEventArgs e)
+    {
+        MirrorTile.IsChecked = false; // an action, not a switch
+        Hide();
+        Native.PressKeys(0x5B, 0x4B); // Win+K opens Windows' Cast panel
     }
 
     void OpenSettings(object sender, MouseButtonEventArgs e)

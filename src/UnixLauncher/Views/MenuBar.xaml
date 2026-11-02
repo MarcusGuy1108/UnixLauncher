@@ -18,6 +18,8 @@
             </Grid>
         </Button>
         <Button x:Name="AppBtn" Style="{StaticResource BarButton}" Click="App_Click" FontWeight="Bold" Content="Desktop"/>
+        <!-- The app's own menus (File, Edit, View…) mirrored from its window, then Window -->
+        <StackPanel x:Name="AppMenus" Orientation="Horizontal"/>
 
         <!-- Right side, docked right-to-left like macOS: clock is outermost -->
         <Button x:Name="ClockBtn" DockPanel.Dock="Right" Style="{StaticResource BarButton}" Click="Clock_Click" ToolTip="Notification Centre"/>
