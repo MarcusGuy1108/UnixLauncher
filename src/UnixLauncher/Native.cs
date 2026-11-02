@@ -69,6 +69,10 @@ static class Native
     [DllImport("user32.dll")] public static extern IntPtr SetWinEventHook(uint min, uint max, IntPtr mod, WinEventProc proc, uint pid, uint tid, uint flags);
     [DllImport("user32.dll")] public static extern bool UnhookWinEvent(IntPtr hook);
     [DllImport("user32.dll", CharSet = CharSet.Unicode)] public static extern uint RegisterWindowMessage(string msg);
+    // Shell-only: the "task manager" window is the one Windows asks where a minimising window should animate to.
+    [DllImport("user32.dll")] public static extern bool SetTaskmanWindow(IntPtr h);
+    [DllImport("user32.dll")] public static extern bool RegisterShellHookWindow(IntPtr h);
+    [StructLayout(LayoutKind.Sequential)] public struct SHELLHOOKINFO { public IntPtr hwnd; public RECT rc; }
     [DllImport("user32.dll", SetLastError = true)] public static extern bool SystemParametersInfo(uint action, uint param, ref RECT rc, uint winIni);
     [DllImport("user32.dll", CharSet = CharSet.Unicode)] public static extern IntPtr SendMessageTimeout(IntPtr h, uint msg, IntPtr w, string l, uint flags, uint timeout, out IntPtr result);
     [DllImport("user32.dll")] public static extern int SetWindowCompositionAttribute(IntPtr h, ref WindowCompositionAttribData data);

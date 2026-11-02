@@ -230,6 +230,7 @@ public partial class MenuBar : Window
 
     void ShowOwnApp(Window w, string name)
     {
+        if (_ownApp == w) return;
         _finder = false;
         _ownApp = w;
         _target = UI.Hwnd(w);
@@ -247,7 +248,7 @@ public partial class MenuBar : Window
 
     void ShowFinder(FinderWindow? fw, IntPtr hwnd)
     {
-        if (_finder && hwnd == _target && hwnd != IntPtr.Zero) return;
+        if (_finder && hwnd == _target) return; // the desktop (Zero) included: rebuilding would pull an open menu's title out from under it
         _finder = true;
         _ownApp = null;
         _target = hwnd;

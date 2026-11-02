@@ -72,6 +72,8 @@ public partial class TrafficLightOverlay : Window
         {
             _sampledFor = (fg, buttons.Width, buttons.Height);
             if (SampleTitleBar(buttons) is { } c) Backing.Background = _coverFill.Background = new SolidColorBrush(c);
+            // Chromium/Electron put a tab or the app name where the backing would go; covering it looked worse than the dots alone.
+            if (IsChromium(fg)) Backing.Background = null;
         }
         // Never draw over something that is on top of the app (a flyout, a dialog, another window): the buttons belong under it.
         var lights = new Native.RECT { Left = x, Top = y, Right = x + (int)(Width * s), Bottom = y + (int)(Height * s) };
@@ -127,14 +129,16 @@ public partial class TrafficLightOverlay : Window
         finally { Native.ReleaseDC(IntPtr.Zero, dc); }
     }
 
+    static bool IsChromium(IntPtr h) => Native.GetClass(h).StartsWith("Chrome_WidgetWin_");
+
     static bool Eligible(IntPtr h)
     {
         if (!Settings.Current.TrafficLightOverlay || h == IntPtr.Zero || !Native.IsWindowVisible(h) || Native.IsIconic(h)) return false;
-        if ((Native.Style(h) & Native.WS_CAPTION) != Native.WS_CAPTION || (Native.ExStyle(h) & Native.WS_EX_TOOLWINDOW) != 0) return false;
+        // Chromium/Electron apps (Brave, Discord…) draw their own title bar, some without WS_CAPTION: a minimise box marks a normal window.
+        long style = Native.Style(h);
+        bool normal = (style & Native.WS_CAPTION) == Native.WS_CAPTION || (IsChromium(h) && (style & Native.WS_MINIMIZEBOX) != 0);
+        if (!normal || (Native.ExStyle(h) & Native.WS_EX_TOOLWINDOW) != 0) return false;
         if (Native.IsShellWindow(h) || Native.IsCloaked(h) || RunningApps.IsOwn(h) || Native.IsFullscreen(h)) return false;
-        // Chromium and Electron apps (Chrome, Edge, Brave, VS Code, Discord…) put tabs or menus right where the dots go,
-        // so they keep their own buttons rather than having their first tab covered.
-        if (Native.GetClass(h).StartsWith("Chrome_WidgetWin_")) return false;
         Native.GetWindowThreadProcessId(h, out uint pid);
         var exe = Path.GetFileName(Native.GetProcessPath(pid) ?? "");
         return !Settings.Current.OverlayExclude.Any(x => string.Equals(x, exe, StringComparison.OrdinalIgnoreCase));

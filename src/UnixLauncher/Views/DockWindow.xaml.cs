@@ -5,6 +5,8 @@ using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
+using System.Windows.Interop;
+using System.Runtime.InteropServices;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
@@ -36,6 +38,8 @@ public partial class DockWindow : Window
     readonly List<double> _baseSizes = new();
     readonly List<bool> _scalable = new();
     readonly List<FrameworkElement> _pinSlots = new();
+    readonly List<(Entry entry, FrameworkElement slot)> _entrySlots = new();
+    int _shellHookMsg;
     Image? _trashImage;
     bool? _trashFull;
 
@@ -57,13 +61,16 @@ public partial class DockWindow : Window
     public DockWindow()
     {
         InitializeComponent();
-        if (Glass.Supported)
         {
             // This window spans the whole screen edge (room for magnified icons), so blurring it would blur
-            // that entire strip. Instead a separate shelf-sized acrylic window sits directly underneath.
-            _glass = new Window { ShowInTaskbar = false, ShowActivated = false, Topmost = true, ResizeMode = ResizeMode.NoResize, Title = "Dock Backdrop" };
-            Glass.Setup(_glass);
-            _glass.SourceInitialized += (_, _) => Native.SetToolWindow(UI.Hwnd(_glass), true);
+            // that entire strip. Instead a separate shelf-sized blur window sits directly underneath. It uses the
+            // menu bar's accent blur: the system acrylic ignores the rounded window region and showed square corners.
+            _glass = new Window
+            {
+                ShowInTaskbar = false, ShowActivated = false, Topmost = true, ResizeMode = ResizeMode.NoResize, Title = "Dock Backdrop",
+                WindowStyle = WindowStyle.None, AllowsTransparency = true, Background = new SolidColorBrush(Color.FromArgb(1, 0, 0, 0)),
+            };
+            _glass.SourceInitialized += (_, _) => { Native.SetToolWindow(UI.Hwnd(_glass), true); Native.EnableBlur(UI.Hwnd(_glass)); };
             ShelfBg.Background = new SolidColorBrush(Color.FromArgb(0x1A, 0xFF, 0xFF, 0xFF)); // light glass over the real blur
             ShelfBg.SizeChanged += (_, _) => SyncGlass();
         }
@@ -71,6 +78,13 @@ public partial class DockWindow : Window
         {
             _hwnd = UI.Hwnd(this);
             Native.SetToolWindow(_hwnd, true);
+            if (App.ShellMode) // with no Explorer taskbar, we're who Windows asks where minimised windows go: into their dock icon
+            {
+                _shellHookMsg = (int)Native.RegisterWindowMessage("SHELLHOOK");
+                HwndSource.FromHwnd(_hwnd)!.AddHook(ShellHook);
+                Native.RegisterShellHookWindow(_hwnd);
+                Native.SetTaskmanWindow(_hwnd);
+            }
             Layout();
         };
 
@@ -187,11 +201,12 @@ public partial class DockWindow : Window
     void Rebuild(List<Entry> entries, int pinCount)
     {
         Items.Children.Clear();
-        _visuals.Clear(); _baseSizes.Clear(); _scalable.Clear(); _pinSlots.Clear();
+        _visuals.Clear(); _baseSizes.Clear(); _scalable.Clear(); _pinSlots.Clear(); _entrySlots.Clear();
         for (int i = 0; i < entries.Count; i++)
         {
             if (i == pinCount) AddSeparator(); // pinned | running-but-not-pinned
             var slot = AddIcon(entries[i]);
+            _entrySlots.Add((entries[i], slot));
             if (i < pinCount) _pinSlots.Add(slot);
         }
         AddSeparator();
@@ -464,6 +479,25 @@ public partial class DockWindow : Window
         // The backdrop can't follow a WPF animation: drop it while sliding out, bring it back once in place.
         if (show) anim.Completed += (_, _) => SyncGlass(); else SyncGlass();
         Slide.BeginAnimation(Vertical ? TranslateTransform.XProperty : TranslateTransform.YProperty, anim);
+    }
+
+    // ---------- Minimise target (shell mode) ----------
+    IntPtr ShellHook(IntPtr h, int msg, IntPtr wp, IntPtr lp, ref bool handled)
+    {
+        if (msg != _shellHookMsg || (wp.ToInt64() & 0x7FFF) != 5 || lp == IntPtr.Zero) return IntPtr.Zero; // HSHELL_GETMINRECT
+        var info = Marshal.PtrToStructure<Native.SHELLHOOKINFO>(lp);
+        var w = RunningApps.Describe(info.hwnd);
+        foreach (var (entry, slot) in _entrySlots)
+        {
+            if (!(entry.Pin != null ? Matches(entry.Pin, w) : entry.Key == w.Key) || !slot.IsVisible) continue;
+            var a = slot.PointToScreen(new Point(0, 0));
+            var b = slot.PointToScreen(new Point(slot.ActualWidth, slot.ActualHeight));
+            info.rc = new Native.RECT { Left = (int)a.X, Top = (int)a.Y, Right = (int)b.X, Bottom = (int)b.Y };
+            Marshal.StructureToPtr(info, lp, false);
+            handled = true;
+            return new IntPtr(1);
+        }
+        return IntPtr.Zero;
     }
 
     // ---------- Drag & drop: reorder pins, pin running apps, drag pins off to remove, or drop files/folders/shortcuts to pin them ----------
