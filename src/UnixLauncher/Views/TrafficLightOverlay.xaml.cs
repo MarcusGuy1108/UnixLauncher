@@ -118,8 +118,7 @@ public partial class TrafficLightOverlay : Window
     /// <summary>Cover the focused app's own caption buttons when it draws them itself.</summary>
     void PlaceCover(IntPtr fg)
     {
-        // Hidden while the window is dragged or resized: a cover trailing behind it is what looked broken.
-        if (!Settings.Current.HideCaptionButtons || !Eligible(fg) || WindowEvents.MovingOrSizing) { _cover.Hide(); return; }
+        if (!Settings.Current.HideCaptionButtons || !Eligible(fg)) { _cover.Hide(); return; }
         var r = Native.FrameBounds(fg);
         var key = (fg, r.Right - r.Left, r.Bottom - r.Top);
         if (key != _coverKey) // new window or size: find its buttons again (off the UI thread; UI Automation can be slow)
@@ -154,41 +153,83 @@ public partial class TrafficLightOverlay : Window
 
     /// <summary>
     /// Where are the app's own minimise/maximise/close? Asks UI Automation what is at the close button's spot, then takes
-    /// the run of buttons beside it. Nothing found (classic apps, whose buttons are already gone natively): no cover.
+    /// the run of buttons beside it. Chromium browsers that don't answer get their standard layout measured from the screen.
+    /// Nothing found (classic apps, whose buttons are already gone natively): no cover.
     /// </summary>
     static ((int, int, int, int) at, Color colour)? FindButtons(IntPtr h, Native.RECT r, double s)
     {
-        try
-        {
-            var close = AutomationElement.FromPoint(new Point(r.Right - 20 * s, r.Top + 12 * s));
-            Native.GetWindowThreadProcessId(h, out uint pid);
-            if (close == null || close.Current.ProcessId != pid || close.Current.ControlType != ControlType.Button) return null;
-            var parent = TreeWalker.ControlViewWalker.GetParent(close);
-            if (parent == null) return null;
-            var buttons = parent.FindAll(TreeScope.Children, new PropertyCondition(AutomationElement.ControlTypeProperty, ControlType.Button))
-                .Cast<AutomationElement>().Select(e => e.Current.BoundingRectangle).Where(b => !b.IsEmpty)
-                .OrderByDescending(b => b.Left).ToList();
-            var all = close.Current.BoundingRectangle;
-            foreach (var b in buttons) // the buttons touching the close button, leftwards (not e.g. a tab-search button further off)
-                if (b.Right >= all.Left - 2 * s && b.Right <= all.Left + 2 * s && Math.Abs(b.Top - all.Top) <= 4 * s) all.Union(b);
-            // Only something that is plainly the top-right caption buttons.
-            if (all.Width > 4 * 60 * s || all.Height < 16 * s || all.Height > 64 * s || r.Right - all.Right > 16 * s || all.Top - r.Top > 16 * s) return null;
-            if (SamplePixel((int)all.Left - (int)(4 * s), (int)(all.Top + all.Height / 2)) is not { } colour) return null;
-            return (((int)(r.Right - all.Left), (int)(all.Top - r.Top), (int)Math.Ceiling(all.Width), (int)Math.Ceiling(all.Height)), colour);
-        }
-        catch (Exception) { return null; } // the app went away or doesn't answer UI Automation
+        // Only something that is plainly the top-right caption buttons.
+        bool Plausible(Rect b) => !b.IsEmpty && b.Width <= 4 * 60 * s && b.Height >= 16 * s && b.Height <= 64 * s
+                                  && r.Right - b.Right <= 16 * s && b.Top - r.Top <= 16 * s;
+        Rect all;
+        try { all = FromAutomation(h, r, s) ?? Rect.Empty; }
+        catch (Exception) { all = Rect.Empty; } // the app went away or doesn't answer UI Automation
+        if (!Plausible(all) && IsChromiumBrowser(h)) all = ChromiumButtons(r, s);
+        if (!Plausible(all)) return null;
+        // The title bar's colour: the most common colour in a strip just left of the buttons (an accent line or an icon can't win).
+        int y = (int)(all.Top + all.Height / 2);
+        if (MostCommon((int)(all.Left - 48 * s), (int)(all.Left - 4 * s), y) is not { } colour) return null;
+        return (((int)(r.Right - all.Left), (int)(all.Top - r.Top), (int)Math.Ceiling(all.Width), (int)Math.Ceiling(all.Height)), colour);
     }
 
-    /// <summary>One screen pixel, leaving out layered windows (so our own cover never colours itself).</summary>
-    static Color? SamplePixel(int x, int y)
+    static Rect? FromAutomation(IntPtr h, Native.RECT r, double s)
     {
-        IntPtr screen = Native.GetDC(IntPtr.Zero), mem = Native.CreateCompatibleDC(screen), bmp = Native.CreateCompatibleBitmap(screen, 1, 1);
+        var close = AutomationElement.FromPoint(new Point(r.Right - 20 * s, r.Top + 12 * s));
+        Native.GetWindowThreadProcessId(h, out uint pid);
+        if (close == null || close.Current.ProcessId != pid || close.Current.ControlType != ControlType.Button) return null;
+        var parent = TreeWalker.ControlViewWalker.GetParent(close);
+        if (parent == null) return null;
+        var buttons = parent.FindAll(TreeScope.Children, new PropertyCondition(AutomationElement.ControlTypeProperty, ControlType.Button))
+            .Cast<AutomationElement>().Select(e => e.Current.BoundingRectangle).Where(b => !b.IsEmpty)
+            .OrderByDescending(b => b.Left).ToList();
+        var all = close.Current.BoundingRectangle;
+        foreach (var b in buttons) // the buttons touching the close button, leftwards (not e.g. a tab-search button further off)
+            if (b.Right >= all.Left - 2 * s && b.Right <= all.Left + 2 * s && Math.Abs(b.Top - all.Top) <= 4 * s) all.Union(b);
+        return all;
+    }
+
+    // shortcut: browsers only, whose caption buttons are Windows-sized (45 px each); add other Chromium apps when their sizes are known.
+    static bool IsChromiumBrowser(IntPtr h)
+    {
+        if (!IsChromium(h)) return false;
+        Native.GetWindowThreadProcessId(h, out uint pid);
+        string exe = Path.GetFileNameWithoutExtension(Native.GetProcessPath(pid) ?? "").ToLowerInvariant();
+        return exe is "brave" or "chrome" or "msedge" or "vivaldi" or "opera" or "chromium" or "thorium";
+    }
+
+    /// <summary>Chromium's three 45 px buttons at the top-right; their height is where the tab strip meets the toolbar.</summary>
+    static Rect ChromiumButtons(Native.RECT r, double s)
+    {
+        int x = r.Right - (int)(3 * s), top = r.Top + (int)(2 * s), max = (int)(64 * s); // the close button's right margin: no glyph
+        var column = Pixels(x, top, 1, max);
+        if (column == null) return Rect.Empty;
+        int height = Array.FindIndex(column, c => Diff(c, column[0]) > 12);
+        if (height < 0) return Rect.Empty;
+        double w = 3 * 45 * s;
+        return new Rect(r.Right - w, r.Top, w, height + (top - r.Top));
+    }
+
+    static Color? MostCommon(int x0, int x1, int y)
+    {
+        var row = Pixels(x0, y, Math.Max(1, x1 - x0), 1);
+        if (row == null) return null;
+        uint c = row.GroupBy(p => p).OrderByDescending(g => g.Count()).First().Key;
+        return Color.FromRgb((byte)c, (byte)(c >> 8), (byte)(c >> 16)); // COLORREF is 0x00BBGGRR
+    }
+
+    /// <summary>Screen pixels (row by row), leaving out layered windows, so our own cover and buttons are never read.</summary>
+    static uint[]? Pixels(int x, int y, int w, int h)
+    {
+        IntPtr screen = Native.GetDC(IntPtr.Zero), mem = Native.CreateCompatibleDC(screen), bmp = Native.CreateCompatibleBitmap(screen, w, h);
         IntPtr old = Native.SelectObject(mem, bmp);
         try
         {
-            if (!Native.BitBlt(mem, 0, 0, 1, 1, screen, x, y, 0x00CC0020)) return null; // SRCCOPY
-            uint c = Native.GetPixel(mem, 0, 0);
-            return c == 0xFFFFFFFF ? null : Color.FromRgb((byte)c, (byte)(c >> 8), (byte)(c >> 16)); // COLORREF is 0x00BBGGRR
+            if (!Native.BitBlt(mem, 0, 0, w, h, screen, x, y, 0x00CC0020)) return null; // SRCCOPY
+            var px = new uint[w * h];
+            for (int j = 0; j < h; j++)
+                for (int i = 0; i < w; i++)
+                    px[j * w + i] = Native.GetPixel(mem, i, j);
+            return px;
         }
         finally
         {
