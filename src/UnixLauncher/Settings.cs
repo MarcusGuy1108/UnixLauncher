@@ -77,7 +77,7 @@ public class Settings
         new() { Name = "Launchpad", Launch = "::launchpad" },
         new() { Name = "Settings", Launch = @"shell:AppsFolder\windows.immersivecontrolpanel_cw5n1h2txyewy!microsoft.windows.immersivecontrolpanel",
                 Aumid = "windows.immersivecontrolpanel_cw5n1h2txyewy!microsoft.windows.immersivecontrolpanel" },
-        new() { Name = "Downloads", Launch = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "Downloads") },
+        new() { Name = "Downloads", Launch = Sys.Downloads },
     };
 
     static DockPin FinderPin() => new() { Name = "Finder", Launch = "::finder" };
@@ -97,6 +97,7 @@ public class Settings
             // Earlier versions pinned File Explorer by default; Finder takes that place. Pins the user made stay.
             int i = Current.Pinned.FindIndex(p => p.Name == "File Explorer" && p.Exe == "explorer.exe");
             if (i >= 0 && !Current.Pinned.Any(p => p.Launch == "::finder")) Current.Pinned[i] = FinderPin();
+            Sys.FixDownloadsPin(Current.Pinned);
         }
         catch (Exception ex)
         {

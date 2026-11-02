@@ -109,6 +109,9 @@ public partial class TrafficLightOverlay : Window
         if (!Settings.Current.TrafficLightOverlay || h == IntPtr.Zero || !Native.IsWindowVisible(h) || Native.IsIconic(h)) return false;
         if ((Native.Style(h) & Native.WS_CAPTION) != Native.WS_CAPTION || (Native.ExStyle(h) & Native.WS_EX_TOOLWINDOW) != 0) return false;
         if (Native.IsShellWindow(h) || Native.IsCloaked(h) || RunningApps.IsOwn(h) || Native.IsFullscreen(h)) return false;
+        // Chromium and Electron apps (Chrome, Edge, Brave, VS Code, Discord…) put tabs or menus right where the dots go,
+        // so they keep their own buttons rather than having their first tab covered.
+        if (Native.GetClass(h).StartsWith("Chrome_WidgetWin_")) return false;
         Native.GetWindowThreadProcessId(h, out uint pid);
         var exe = Path.GetFileName(Native.GetProcessPath(pid) ?? "");
         return !Settings.Current.OverlayExclude.Any(x => string.Equals(x, exe, StringComparison.OrdinalIgnoreCase));

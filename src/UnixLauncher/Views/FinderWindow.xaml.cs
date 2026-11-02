@@ -194,13 +194,27 @@ public partial class FinderWindow : MacWindow
             {
                 ThisPcPath => DriveItems(),
                 TrashPath => TrashItems(),
-                _ => new DirectoryInfo(_current).EnumerateFileSystemInfos("*", new EnumerationOptions()).Select(ToItem).ToList(),
+                _ => new DirectoryInfo(_current).EnumerateFileSystemInfos("*", Listing()).Where(Visible).Select(ToItem).ToList(),
             };
         }
         catch (Exception ex) { _all = new(); _error = ex.Message; }
         foreach (var it in _all) // unchanged files keep their already-loaded icon
             if (old.TryGetValue(it.Path, out var o) && o.Modified == it.Modified) it.Icon = o.Icon;
         Present(keep, keepScroll: keepSelection);
+    }
+
+    /// <summary>macOS hides dot files (.cache, .gitconfig…) as well as hidden ones; ⌘⇧. shows them all, in every Finder window.</summary>
+    static bool _showHidden;
+    static EnumerationOptions Listing(bool recurse = false) => new()
+    {
+        RecurseSubdirectories = recurse, AttributesToSkip = _showHidden ? 0 : FileAttributes.Hidden | FileAttributes.System,
+    };
+    static bool Visible(FileSystemInfo f) => _showHidden || !f.Name.StartsWith('.');
+
+    static void ToggleHidden()
+    {
+        _showHidden = !_showHidden;
+        foreach (var w in All) w.Reload();
     }
 
     static bool Ready(DriveInfo d)
@@ -461,8 +475,9 @@ public partial class FinderWindow : MacWindow
             found = await Task.Run(() =>
             {
                 var list = new List<FileItem>();
-                foreach (var f in new DirectoryInfo(root).EnumerateFileSystemInfos("*" + q + "*", new EnumerationOptions { RecurseSubdirectories = true }))
+                foreach (var f in new DirectoryInfo(root).EnumerateFileSystemInfos("*" + q + "*", Listing(recurse: true)))
                 {
+                    if (!_showHidden && f.FullName.IndexOf(@"\.", Math.Max(0, root.Length - 1)) >= 0) continue; // nothing from inside .cache etc. either
                     if (cts.IsCancellationRequested || list.Count >= 1000) break;
                     list.Add(ToItem(f));
                 }
@@ -803,8 +818,7 @@ public partial class FinderWindow : MacWindow
         static string F(Environment.SpecialFolder f) => Environment.GetFolderPath(f);
         yield return ("Desktop", "", F(Environment.SpecialFolder.DesktopDirectory));
         yield return ("Documents", "", F(Environment.SpecialFolder.MyDocuments));
-        // shortcut: assumes Downloads lives in the profile folder; a relocated one needs SHGetKnownFolderPath.
-        yield return ("Downloads", "", System.IO.Path.Combine(Home, "Downloads"));
+        yield return ("Downloads", "", Sys.Downloads);
         yield return ("Pictures", "", F(Environment.SpecialFolder.MyPictures));
         yield return ("Music", "", F(Environment.SpecialFolder.MyMusic));
         yield return ("Videos", "", F(Environment.SpecialFolder.MyVideos));
@@ -1035,6 +1049,7 @@ public partial class FinderWindow : MacWindow
             (Key.H, true, true) => () => Navigate(Home),      // ⌘⇧H / ⌘⇧D / ⌘⇧C
             (Key.D, true, true) => () => Navigate(Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory)),
             (Key.C, true, true) => () => Navigate(ThisPcPath),
+            (Key.OemPeriod, true, true) => ToggleHidden,      // ⌘⇧. show / hide hidden files
             (Key.F2, false, _) => Rename,
             (Key.Escape, false, _) when QuickLook.IsOpen => ToggleQuickLook,
             (Key.Enter, false, _) => Settings.Current.MacShortcuts ? Rename : OpenSelected, // Return renames in macOS Finder

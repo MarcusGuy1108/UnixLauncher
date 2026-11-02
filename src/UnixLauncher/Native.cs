@@ -75,6 +75,7 @@ static class Native
 
     [DllImport("shell32.dll")] public static extern IntPtr SHAppBarMessage(uint msg, ref APPBARDATA data);
     [DllImport("shell32.dll", CharSet = CharSet.Unicode)] public static extern int SHEmptyRecycleBin(IntPtr h, string? root, uint flags);
+    [DllImport("shell32.dll", CharSet = CharSet.Unicode)] public static extern int SHGetKnownFolderPath(ref Guid id, uint flags, IntPtr token, out string path);
     [DllImport("shell32.dll")] public static extern int SHGetPropertyStoreForWindow(IntPtr h, ref Guid iid, out IPropertyStore store);
     [DllImport("shell32.dll", CharSet = CharSet.Unicode, PreserveSig = false)]
     public static extern void SHCreateItemFromParsingName(string path, IntPtr bindCtx, ref Guid iid, out IShellItemImageFactory factory);

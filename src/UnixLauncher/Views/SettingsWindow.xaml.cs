@@ -156,7 +156,7 @@ public partial class SettingsWindow : MacWindow
             Row("⌘⇧3  Screenshot · ⌘⇧4 / ⌘⇧5  Select an area", "Alt+Shift+3, 4, 5", null),
             Row("⌘Space  Spotlight · ⌘Tab  Switch apps", "Alt+Space and Alt+Tab (Windows' own app switcher)", null),
             Row("Finder", "Return renames, ⌘↓ or ⌘O opens, ⌘⌫ moves to the Recycle Bin, ⌘⇧G goes to a folder, ⌘I gets info, " +
-                "⌘⇧H / ⌘⇧D / ⌘⇧C open Home / Desktop / This PC.", null)),
+                "⌘⇧H / ⌘⇧D / ⌘⇧C open Home / Desktop / This PC, ⌘⇧. shows hidden files.", null)),
     };
 
     FrameworkElement[] Integration()

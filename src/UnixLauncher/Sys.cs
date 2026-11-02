@@ -13,6 +13,25 @@ static class Sys
 {
     public static string ExePath => Environment.ProcessPath!;
 
+    static readonly string DefaultDownloads = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "Downloads");
+
+    /// <summary>Where Windows really keeps Downloads: it can be moved (Properties › Location), and .NET has no SpecialFolder for it.</summary>
+    public static string Downloads
+    {
+        get
+        {
+            var id = new Guid("374DE290-123F-4565-9164-39C4925E467B"); // FOLDERID_Downloads
+            return Native.SHGetKnownFolderPath(ref id, 0, IntPtr.Zero, out var path) == 0 ? path : DefaultDownloads;
+        }
+    }
+
+    /// <summary>Older versions pinned the default Downloads path; point that pin at the real folder if it was moved.</summary>
+    public static void FixDownloadsPin(List<DockPin> pins)
+    {
+        foreach (var p in pins)
+            if (string.Equals(p.Launch, DefaultDownloads, StringComparison.OrdinalIgnoreCase) && !Directory.Exists(p.Launch)) p.Launch = Downloads;
+    }
+
     // ---------- Launching ----------
     public static void Launch(string target, string args = "")
     {

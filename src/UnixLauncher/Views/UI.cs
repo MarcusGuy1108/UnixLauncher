@@ -56,6 +56,11 @@ static class Glass
         Native.DwmSetWindowAttribute(hwnd, 20, ref dark, sizeof(int));    // DWMWA_USE_IMMERSIVE_DARK_MODE
         Native.DwmSetWindowAttribute(hwnd, 33, ref round, sizeof(int));   // DWMWA_WINDOW_CORNER_PREFERENCE = round
         Native.DwmSetWindowAttribute(hwnd, 38, ref acrylic, sizeof(int)); // DWMWA_SYSTEMBACKDROP_TYPE = transient (acrylic)
+        // Windows' "accent colour on title bars and borders" would paint an accent band over the glass and an accent rim:
+        // no caption colour, and a fixed subtle grey rim like macOS's dark windows.
+        int none = unchecked((int)0xFFFFFFFE), rim = 0x00484848; // DWMWA_COLOR_NONE; COLORREF 0x00BBGGRR
+        Native.DwmSetWindowAttribute(hwnd, 35, ref none, sizeof(int));    // DWMWA_CAPTION_COLOR
+        Native.DwmSetWindowAttribute(hwnd, 34, ref rim, sizeof(int));     // DWMWA_BORDER_COLOR
         src.AddHook(KeepActive);
         Native.SendMessage(hwnd, WM_NCACTIVATE, new IntPtr(1), IntPtr.Zero); // never-focused windows (dock, banners) start "inactive"
     }

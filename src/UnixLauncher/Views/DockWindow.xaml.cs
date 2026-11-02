@@ -39,7 +39,10 @@ public partial class DockWindow : Window
     Image? _trashImage;
     bool? _trashFull;
 
-    bool _fullscreenHidden, _autoShown = true, _menuOpen;
+    bool _fullscreenHidden, _autoShown = true, _menuOpen, _dragging;
+    DockPin? _dragNew; // a running app being dragged into the pinned section
+    FrameworkElement? _dragSlot, _gap; // the icon being dragged; the space opening where it will land
+    int _gapAt = -1;
     DateTime _lastNear = DateTime.Now;
     Point _pressAt;
     Entry? _pressed;
@@ -85,6 +88,7 @@ public partial class DockWindow : Window
         MouseEnter += (_, _) => RefreshTrash();
         DragOver += OnDragOver;
         Drop += OnDrop;
+        DragLeave += OnDragLeave;
         RefreshWindows();
     }
 
@@ -157,6 +161,7 @@ public partial class DockWindow : Window
     // ---------- Items ----------
     void RefreshWindows()
     {
+        if (_dragging) return; // rebuilding the icons would pull the dragged one out from under the pointer
         _windows = RunningApps.Enumerate();
         var pins = S.Pinned;
         var entries = pins.Select(p => new Entry { Pin = p, Windows = PinWindows(p) }).ToList();
@@ -261,14 +266,14 @@ public partial class DockWindow : Window
         slot.PreviewMouseLeftButtonDown += (_, ev) => { _pressAt = ev.GetPosition(this); _pressed = e; };
         slot.MouseMove += (_, ev) =>
         {
-            if (_pressed != e || ev.LeftButton != MouseButtonState.Pressed || e.Pin == null) return;
+            if (_pressed != e || ev.LeftButton != MouseButtonState.Pressed || e.Trash) return;
             var d = ev.GetPosition(this) - _pressAt;
             if (Math.Abs(d.X) < SystemParameters.MinimumHorizontalDragDistance && Math.Abs(d.Y) < SystemParameters.MinimumVerticalDragDistance) return;
             _pressed = null;
-            DragDrop.DoDragDrop(slot, new DataObject(PinFormat, S.Pinned.IndexOf(e.Pin)), DragDropEffects.Move);
+            DragItem(e, slot);
         };
         slot.MouseLeftButtonUp += (_, _) => { if (_pressed == e) { _pressed = null; Click(e, visual); } };
-        slot.MouseRightButtonUp += (_, ev) => { ev.Handled = true; ShowMenu(ItemMenu(e)); };
+        slot.MouseRightButtonUp += (_, ev) => { ev.Handled = true; ShowMenu(ItemMenu(e), slot); };
 
         Items.Children.Add(slot);
         _visuals.Add(visual); _baseSizes.Add(IconSize + Gap * 2); _scalable.Add(true);
@@ -321,11 +326,27 @@ public partial class DockWindow : Window
     }
 
     // ---------- Menus ----------
-    void ShowMenu(ContextMenu menu)
+    /// <summary>Icon menus open centred just off the icon, towards the screen, as on macOS; shelf menus at the pointer.</summary>
+    void ShowMenu(ContextMenu menu, FrameworkElement? icon = null)
     {
         _menuOpen = true;
         menu.Closed += (_, _) => { _menuOpen = false; _lastNear = DateTime.Now; };
-        menu.Placement = PlacementMode.MousePoint;
+        if (icon == null) menu.Placement = PlacementMode.MousePoint;
+        else
+        {
+            menu.PlacementTarget = icon;
+            menu.Placement = PlacementMode.Custom;
+            double gap = 10 * UI.Scale(this); // popup sizes here are in device pixels
+            menu.CustomPopupPlacementCallback = (popup, target, _) => new[]
+            {
+                new CustomPopupPlacement(Edge switch
+                {
+                    "Left" => new Point(target.Width + gap, (target.Height - popup.Height) / 2),
+                    "Right" => new Point(-popup.Width - gap, (target.Height - popup.Height) / 2),
+                    _ => new Point((target.Width - popup.Width) / 2, -popup.Height - gap),
+                }, PopupPrimaryAxis.None),
+            };
+        }
         menu.IsOpen = true;
     }
 
@@ -430,7 +451,7 @@ public partial class DockWindow : Window
         Native.GetCursorPos(out var pt);
         int sw = Native.GetSystemMetrics(0), sh = Native.GetSystemMetrics(1);
         bool atEdge = Edge switch { "Left" => pt.X <= 1, "Right" => pt.X >= sw - 2, _ => pt.Y >= sh - 2 };
-        if (atEdge || IsMouseOver || _menuOpen) _lastNear = DateTime.Now;
+        if (atEdge || IsMouseOver || _menuOpen || _dragging) _lastNear = DateTime.Now;
         if (!_autoShown && atEdge) SetAutoShown(true);
         else if (_autoShown && (DateTime.Now - _lastNear).TotalMilliseconds > 700) SetAutoShown(false);
     }
@@ -445,30 +466,187 @@ public partial class DockWindow : Window
         Slide.BeginAnimation(Vertical ? TranslateTransform.XProperty : TranslateTransform.YProperty, anim);
     }
 
-    // ---------- Drag & drop: reorder pins, or drop files/folders/shortcuts to pin them ----------
+    // ---------- Drag & drop: reorder pins, pin running apps, drag pins off to remove, or drop files/folders/shortcuts to pin them ----------
+    void DragItem(Entry e, FrameworkElement slot)
+    {
+        var wins = WindowsFor(e);
+        if (e.Pin == null && wins.Count == 0) return;
+        _dragNew = e.Pin == null ? RunningApps.ToPin(wins[0]) : null;
+        bool removable = e.Pin is { Launch: not "::finder" }; // Finder always stays, as on macOS
+        var (ghost, label) = Ghost(slot);
+        bool cancelled = false;
+        QueryContinueDragEventHandler esc = (_, q) => cancelled |= q.EscapePressed;
+        GiveFeedbackEventHandler follow = (_, g) =>
+        {
+            Native.GetCursorPos(out var c);
+            double sc = UI.Scale(this);
+            ghost.Left = c.X / sc - ghost.ActualWidth / 2;
+            ghost.Top = c.Y / sc - IconSize / 2;
+            label.Visibility = removable && PointerOffDock() ? Visibility.Visible : Visibility.Hidden;
+            g.UseDefaultCursors = false; // macOS keeps the plain arrow; the icon itself is the feedback
+            Mouse.SetCursor(Cursors.Arrow);
+            g.Handled = true;
+        };
+        slot.QueryContinueDrag += esc;
+        slot.GiveFeedback += follow;
+        _dragging = true;
+        _dragSlot = slot;
+        Magnify(null);
+        Resize(slot, Vertical ? slot.ActualHeight + Gap * 2 : slot.ActualWidth + Gap * 2, 0, null); // its space closes as the gap opens
+        slot.Margin = new Thickness(0);
+        slot.ClipToBounds = true;
+        slot.Opacity = 0;
+        DragDropEffects result;
+        try { result = DragDrop.DoDragDrop(slot, new DataObject(PinFormat, e.Pin == null ? -1 : S.Pinned.IndexOf(e.Pin)), DragDropEffects.Move); }
+        finally { _dragging = false; _dragNew = null; _dragSlot = null; slot.QueryContinueDrag -= esc; slot.GiveFeedback -= follow; }
+
+        if (result == DragDropEffects.None && !cancelled && removable && PointerOffDock())
+        {
+            Puff(ghost);
+            S.Pinned.Remove(e.Pin!);
+            Settings.Save();
+            return;
+        }
+        ghost.Close();
+        _signature = ""; // put the dragged icon back (or show the new order)
+        RefreshWindows();
+    }
+
+    /// <summary>The icon under the pointer while dragging, with the "Remove" label macOS shows off the Dock. Click-through, so drops land beneath it.</summary>
+    (Window, FrameworkElement) Ghost(FrameworkElement slot)
+    {
+        var visual = slot is Panel { Children.Count: > 1 } p ? (FrameworkElement)p.Children[1] : slot;
+        double s = UI.Scale(this), size = IconSize;
+        var bmp = new System.Windows.Media.Imaging.RenderTargetBitmap((int)Math.Ceiling(size * s), (int)Math.Ceiling(size * s), 96 * s, 96 * s, PixelFormats.Pbgra32);
+        var dv = new DrawingVisual();
+        using (var dc = dv.RenderOpen()) dc.DrawRectangle(new VisualBrush(visual), null, new Rect(0, 0, size, size));
+        bmp.Render(dv);
+        var label = new Border
+        {
+            Background = (Brush)FindResource("PanelBg"), CornerRadius = new CornerRadius(6), Padding = new Thickness(8, 2, 8, 3),
+            Margin = new Thickness(0, 6, 0, 0), HorizontalAlignment = HorizontalAlignment.Center, Visibility = Visibility.Hidden,
+            Child = new TextBlock { Text = "Remove", Foreground = (Brush)FindResource("Text"), FontSize = 12 },
+        };
+        var w = new Window
+        {
+            WindowStyle = WindowStyle.None, AllowsTransparency = true, Background = Brushes.Transparent, Topmost = true,
+            ShowInTaskbar = false, ShowActivated = false, ResizeMode = ResizeMode.NoResize, SizeToContent = SizeToContent.WidthAndHeight,
+            FontFamily = FontFamily, Left = -10000, Top = -10000,
+            Content = new StackPanel { MinWidth = 80, Children = { new Image { Source = bmp, Width = size, Height = size }, label } },
+        };
+        w.SourceInitialized += (_, _) =>
+        {
+            var h = UI.Hwnd(w);
+            Native.SetToolWindow(h, true);
+            Native.SetWindowLongPtr(h, -20, new IntPtr(Native.ExStyle(h) | 0x20)); // GWL_EXSTYLE |= WS_EX_TRANSPARENT
+        };
+        w.Show();
+        return (w, label);
+    }
+
+    /// <summary>macOS's little cloud as an icon leaves the Dock: it swells and vanishes.</summary>
+    static void Puff(Window ghost)
+    {
+        if (!UI.Motion || ghost.Content is not FrameworkElement c) { ghost.Close(); return; }
+        var grow = new ScaleTransform(1, 1);
+        c.RenderTransformOrigin = new Point(0.5, 0.3);
+        c.RenderTransform = grow;
+        var dur = TimeSpan.FromMilliseconds(220);
+        grow.BeginAnimation(ScaleTransform.ScaleXProperty, new DoubleAnimation(1.4, dur));
+        grow.BeginAnimation(ScaleTransform.ScaleYProperty, new DoubleAnimation(1.4, dur));
+        var fade = new DoubleAnimation(0, dur);
+        fade.Completed += (_, _) => ghost.Close();
+        c.BeginAnimation(OpacityProperty, fade);
+    }
+
+    // Pinned icons other than the one being dragged, in order: drop positions count only these.
+    List<FrameworkElement> OtherPins => _pinSlots.Where(x => x != _dragSlot).ToList();
+
+    int DropIndex(DragEventArgs e)
+    {
+        var at = e.GetPosition(Items);
+        return OtherPins.TakeWhile(slot =>
+        {
+            var c = slot.TranslatePoint(new Point(slot.ActualWidth / 2, slot.ActualHeight / 2), Items);
+            return Vertical ? at.Y > c.Y : at.X > c.X;
+        }).Count();
+    }
+
+    double SlotLen => IconSize + Gap * 2;
+
+    /// <summary>Open an icon-sized space where the drop would land; the old space closes as the new one opens, so icons slide.</summary>
+    void ShowGap(int index)
+    {
+        if (index == _gapAt && _gap != null) return;
+        CloseGap();
+        _gapAt = index;
+        var others = OtherPins;
+        int at = index < others.Count ? Items.Children.IndexOf(others[index])
+               : _pinSlots.Count > 0 ? Items.Children.IndexOf(_pinSlots[^1]) + 1 : 0;
+        var gap = new Border { Background = Brushes.Transparent }; // non-null: the gap still accepts the drop
+        if (Vertical) gap.Width = 1; else gap.Height = 1;
+        Items.Children.Insert(Math.Max(0, at), gap);
+        _gap = gap;
+        Resize(gap, 0, SlotLen, null);
+    }
+
+    void CloseGap()
+    {
+        _gapAt = -1;
+        if (_gap is not { } g) return;
+        _gap = null;
+        Resize(g, Vertical ? g.ActualHeight : g.ActualWidth, 0, () => Items.Children.Remove(g));
+    }
+
+    void Resize(FrameworkElement el, double from, double to, Action? done)
+    {
+        var prop = Vertical ? HeightProperty : WidthProperty;
+        if (!UI.Motion) { el.BeginAnimation(prop, null); el.SetValue(prop, to); done?.Invoke(); return; }
+        var a = new DoubleAnimation(from, to, TimeSpan.FromMilliseconds(200)) { EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut } };
+        if (done != null) a.Completed += (_, _) => done();
+        el.BeginAnimation(prop, a);
+    }
+
+    bool PointerOffDock()
+    {
+        Native.GetCursorPos(out var p);
+        Native.GetWindowRect(_hwnd, out var r);
+        return p.X < r.Left || p.X >= r.Right || p.Y < r.Top || p.Y >= r.Bottom;
+    }
+
     void OnDragOver(object sender, DragEventArgs e)
     {
         e.Effects = e.Data.GetDataPresent(PinFormat) ? DragDropEffects.Move
                   : e.Data.GetDataPresent(DataFormats.FileDrop) ? DragDropEffects.Link : DragDropEffects.None;
         e.Handled = true;
+        _lastNear = DateTime.Now; // an auto-hiding Dock stays up while something is dragged over it
+        if (e.Effects != DragDropEffects.None) ShowGap(DropIndex(e));
+    }
+
+    void OnDragLeave(object sender, DragEventArgs e)
+    {
+        // Leave also fires moving between icons; only close the gap once the pointer is really off the shelf.
+        var p = e.GetPosition(Shelf);
+        if (p.X >= 0 && p.Y >= 0 && p.X < Shelf.ActualWidth && p.Y < Shelf.ActualHeight) return;
+        CloseGap();
     }
 
     void OnDrop(object sender, DragEventArgs e)
     {
         var pins = S.Pinned;
-        var at = e.GetPosition(Items);
-        int index = _pinSlots.TakeWhile(slot =>
-        {
-            var c = slot.TranslatePoint(new Point(slot.ActualWidth / 2, slot.ActualHeight / 2), Items);
-            return Vertical ? at.Y > c.Y : at.X > c.X;
-        }).Count();
+        int index = DropIndex(e); // counted without the dragged icon, so it is already the final position
+        CloseGap();
 
-        if (e.Data.GetData(PinFormat) is int from && from >= 0 && from < pins.Count)
+        if (e.Data.GetData(PinFormat) is int from)
         {
-            var pin = pins[from];
-            pins.RemoveAt(from);
-            if (from < index) index--;
-            pins.Insert(Math.Clamp(index, 0, pins.Count), pin);
+            if (from >= 0 && from < pins.Count)
+            {
+                var pin = pins[from];
+                pins.RemoveAt(from);
+                pins.Insert(Math.Clamp(index, 0, pins.Count), pin);
+            }
+            else if (_dragNew != null) pins.Insert(Math.Clamp(index, 0, pins.Count), _dragNew); // Keep in Dock by dragging
+            else return;
         }
         else if (e.Data.GetData(DataFormats.FileDrop) is string[] files)
             foreach (var f in files) pins.Insert(Math.Min(index++, pins.Count), PinForFile(f));
