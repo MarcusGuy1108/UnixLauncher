@@ -62,21 +62,21 @@ public partial class TrafficLightOverlay : Window
 
         var r = Native.FrameBounds(fg);
         double s = UI.Scale(this);
-        int x = r.Left + (int)(12 * s), y = r.Top + (int)((CaptionHeight - Height) / 2 * s);
+        int x = r.Left + (int)(1 * s), y = r.Top + (int)((CaptionHeight - Height) / 2 * s);
+        var buttons = CaptionButtons(fg, style, r, s);
+        if (_sampledFor != (fg, buttons.Width, buttons.Height)) // new window or new size (maximise/restore): re-read its title bar colour
+        {
+            _sampledFor = (fg, buttons.Width, buttons.Height);
+            if (SampleTitleBar(buttons) is { } c) Backing.Background = _coverFill.Background = new SolidColorBrush(c);
+        }
         if (!IsVisible) Show();
         Native.SetWindowPos(_hwnd, Native.HWND_TOPMOST, x, y, 0, 0, Native.SWP_NOSIZE | Native.SWP_NOACTIVATE | Native.SWP_SHOWWINDOW);
-        PlaceCover(fg, style, r, s);
+        PlaceCover(style, buttons);
     }
 
-    void PlaceCover(IntPtr fg, long style, Native.RECT frame, double scale)
+    void PlaceCover(long style, Native.RECT b)
     {
         if (!Settings.Current.HideCaptionButtons || (style & Native.WS_SYSMENU) == 0) { _cover.Hide(); return; } // no buttons to hide
-        var b = CaptionButtons(fg, style, frame, scale);
-        if (_sampledFor != (fg, b.Width, b.Height)) // new window or new size (maximise/restore): re-read its title bar colour
-        {
-            _sampledFor = (fg, b.Width, b.Height);
-            if (SampleTitleBar(b) is { } c) _coverFill.Background = new SolidColorBrush(c);
-        }
         if (!_cover.IsVisible) _cover.Show();
         Native.SetWindowPos(UI.Hwnd(_cover), Native.HWND_TOPMOST, b.Left, b.Top, b.Width, b.Height, Native.SWP_NOACTIVATE | Native.SWP_SHOWWINDOW);
     }

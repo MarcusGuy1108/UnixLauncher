@@ -3,11 +3,14 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         WindowStyle="None" AllowsTransparency="True" Background="Transparent"
         ShowInTaskbar="False" Topmost="True" ShowActivated="False" ResizeMode="NoResize"
-        Width="64" Height="20" Title="Window Controls">
+        Width="75" Height="20" Title="Window Controls">
+    <!-- Starts at the window's left edge and is filled with its title bar colour, so the app's own icon and title start don't show through -->
+    <Border x:Name="Backing" Padding="11,0,0,0">
     <!-- Background must be non-null so the gaps between dots still count as "hovering the group" -->
     <StackPanel Orientation="Horizontal" VerticalAlignment="Center" HorizontalAlignment="Left" Background="#01000000" Height="20">
         <Button Style="{StaticResource TrafficLight}" Background="#FF5F57" Content="×" ToolTip="Close" Click="Close_Click"/>
         <Button x:Name="MinBtn" Style="{StaticResource TrafficLight}" Background="#FEBC2E" Content="−" ToolTip="Minimise" Click="Min_Click"/>
         <Button x:Name="ZoomBtn" Style="{StaticResource TrafficLight}" Background="#28C840" Content="+" ToolTip="Zoom" Click="Zoom_Click"/>
     </StackPanel>
+    </Border>
 </Window>
