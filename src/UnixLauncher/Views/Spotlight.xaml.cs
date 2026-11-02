@@ -11,6 +11,8 @@ public record SearchResult(string Title, string Subtitle, ImageSource? Icon, Act
 
 public partial class Spotlight : Popover
 {
+    protected override Point AnimationOrigin => new(0.5, 0.5); // macOS Spotlight grows from its centre
+
     public Spotlight()
     {
         InitializeComponent();

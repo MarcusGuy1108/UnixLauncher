@@ -144,6 +144,7 @@ static class Native
     [DllImport("user32.dll", EntryPoint = "SendMessageW")] public static extern IntPtr SendCopyData(IntPtr h, int msg, IntPtr w, ref COPYDATASTRUCT data);
     public const int WM_COPYDATA = 0x004A;
 
+    [DllImport("user32.dll")] public static extern uint MapVirtualKey(uint code, uint mapType);
     [DllImport("user32.dll")] public static extern IntPtr GetDC(IntPtr h);
     [DllImport("user32.dll")] public static extern int ReleaseDC(IntPtr h, IntPtr dc);
     [DllImport("gdi32.dll")] public static extern uint GetPixel(IntPtr dc, int x, int y);

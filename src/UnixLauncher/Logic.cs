@@ -206,10 +206,12 @@ public sealed class WinKeyFilter
     public Dictionary<int, string> Combos { get; } = new();
     /// <summary>A lone Win tap gives the "launchpad" action instead of opening Start.</summary>
     public bool ReplaceStart { get; set; }
+    /// <summary>Read when Win goes down. Off (a full-screen game or an excluded app is in front): Win keys stay Windows'.</summary>
+    public bool Enabled { get; set; } = true;
 
     public readonly record struct Result(bool Swallow, string? Action, bool InjectMask);
 
-    bool _winHeld, _passedOther, _swallowedOther;
+    bool _winHeld, _active, _passedOther, _swallowedOther;
     readonly HashSet<int> _swallowed = new(), _modsHeld = new();
 
     public Result Handle(int vk, bool down)
@@ -218,11 +220,11 @@ public sealed class WinKeyFilter
         {
             if (down)
             {
-                if (!_winHeld) { _winHeld = true; _passedOther = _swallowedOther = false; } // ignore auto-repeat
+                if (!_winHeld) { _winHeld = true; _active = Enabled; _passedOther = _swallowedOther = false; } // ignore auto-repeat
                 return default;
             }
             _winHeld = false;
-            if (_passedOther) return default;                       // Windows saw a real Win+key combo: no Start anyway
+            if (!_active || _passedOther) return default;                       // Windows saw a real Win+key combo: no Start anyway
             if (_swallowedOther) return new(false, null, true);     // it only saw Win: mask it so Start stays shut
             return ReplaceStart ? new(false, "launchpad", true) : default;
         }
@@ -234,7 +236,7 @@ public sealed class WinKeyFilter
         }
         if (!down) return new(_swallowed.Remove(vk), null, false); // swallow the release of a press we swallowed
         if (!_winHeld) return default;
-        if (_modsHeld.Count == 0 && Combos.TryGetValue(vk, out var action))
+        if (_active && _modsHeld.Count == 0 && Combos.TryGetValue(vk, out var action))
         {
             _swallowedOther = true;
             bool repeat = !_swallowed.Add(vk);
@@ -242,6 +244,107 @@ public sealed class WinKeyFilter
         }
         _passedOther = true;
         return default;
+    }
+}
+
+/// <summary>
+/// Alt works like the Mac's ⌘ key (it sits in the same place, next to the space bar): Alt+C sends Ctrl+C, Alt+Q quits
+/// the app, Alt+← goes to the start of the line, and so on. Windows never sees the Alt press unless the next key isn't a
+/// Mac shortcut (Alt+Tab, Alt+F4, Alt+Space…); then Alt is replayed in front of that key so it works as usual.
+/// </summary>
+public sealed class MacKeyFilter
+{
+    public const int LAlt = 0xA4; // left Alt only: right Alt is AltGr on many layouts and types characters
+    const int Shift = 0xA0, Ctrl = 0xA2, LWin = 0x5B, Home = 0x24, End = 0x23, Left = 0x25, Up = 0x26, Right = 0x27, Down = 0x28,
+              Back = 0x08, Snapshot = 0x2C; // Alt+Enter is left alone: it's full screen in games and video players
+
+    public readonly record struct Key(int Vk, bool Up);
+    /// <summary>Swallow the real key event; Send = keys to inject instead; Action = something to do ("quit", "hide"…).</summary>
+    public readonly record struct Result(bool Swallow, Key[]? Send, string? Action);
+
+    /// <summary>Read when Alt goes down. Off (setting off, a full-screen game or an excluded app in front): Alt is plain Alt.</summary>
+    public bool Enabled { get; set; }
+
+    bool _alt, _altShown, _shift, _ctrl, _win;
+    readonly HashSet<int> _swallowed = new();
+
+    public Result Handle(int vk, bool down)
+    {
+        switch (vk)
+        {
+            case LAlt:
+                if (down && !_alt)
+                {
+                    _alt = true;
+                    _altShown = !Enabled || _ctrl || _win; // Ctrl+Alt+…, Win+Alt+… stay Windows shortcuts
+                }
+                else if (!down) _alt = false;
+                return new(!_altShown, null, null); // an Alt Windows never saw: hide its release too (so no menu-bar focus)
+            case 0x10 or 0xA0 or 0xA1: _shift = down; return default;
+            case 0x11 or 0xA2 or 0xA3: _ctrl = down; return default;
+            case 0x5B or 0x5C: _win = down; return default;
+        }
+        if (!down) return new(_swallowed.Remove(vk), null, null);
+        if (!_alt || _altShown || _ctrl || _win) return default;
+        if (Map(vk) is { } mac) { _swallowed.Add(vk); return mac; }
+        // Not a Mac shortcut: let Windows see Alt after all, in front of this key.
+        _altShown = true;
+        return new(true, new[] { D(LAlt), D(vk) }, null);
+    }
+
+    static Key D(int vk) => new(vk, false);
+    static Key U(int vk) => new(vk, true);
+    static Result Send(params Key[] keys) => new(true, keys, null);
+    static Result WithCtrl(int vk) => Send(D(Ctrl), D(vk), U(vk), U(Ctrl));
+
+    Result? Map(int vk) => vk switch
+    {
+        'Q' => new(true, null, "quit"),
+        'H' => new(true, null, "hide"),
+        'M' => new(true, null, "minimise"),
+        0xC0 => new(true, null, "next-window"),                                       // ⌘` : next window of this app
+        'Z' when _shift => Send(U(Shift), D(Ctrl), D('Y'), U('Y'), U(Ctrl), D(Shift)),  // ⌘⇧Z redo
+        '3' when _shift => Send(U(Shift), D(LWin), D(Snapshot), U(Snapshot), U(LWin), D(Shift)), // ⌘⇧3 whole screen (saved to Pictures)
+        '4' or '5' when _shift => Send(D(LWin), D('S'), U('S'), U(LWin)),             // ⌘⇧4/5 pick an area (Shift is already down)
+        Left => Send(D(Home), U(Home)),                                               // ⌘← / ⌘→ line start / end (⇧ selects)
+        Right => Send(D(End), U(End)),
+        Up => WithCtrl(Home),                                                          // ⌘↑ / ⌘↓ top / bottom
+        Down => WithCtrl(End),
+        Back => Send(D(Shift), D(Home), U(Home), U(Shift), D(Back), U(Back)),        // ⌘⌫ delete to line start
+        0xDB => Send(D(LAlt), D(Left), U(Left), U(LAlt)),                             // ⌘[ / ⌘] back / forward
+        0xDD => Send(D(LAlt), D(Right), U(Right), U(LAlt)),
+        (>= 'A' and <= 'Z') or (>= '0' and <= '9') or 0xBA or 0xBB or 0xBC or 0xBD or 0xBE or 0xBF or 0xDC or 0xDE
+            => WithCtrl(vk),                                                           // ⌘C ⌘V ⌘T ⌘1 ⌘= ⌘/ … → Ctrl+same
+        _ => null,
+    };
+}
+
+/// <summary>macOS hot corners: fire once when the pointer reaches a screen corner, again only after it has left.</summary>
+public sealed class HotCornerTrigger
+{
+    bool _armed = true;
+
+    /// <summary>The corner the point is in, if it's exactly in one (bounds are left/top inclusive, right/bottom exclusive).</summary>
+    public static string? At(int x, int y, int left, int top, int right, int bottom)
+    {
+        if (x < left || y < top || x >= right || y >= bottom) return null; // on another monitor
+        bool l = x == left, t = y == top, r = x == right - 1, b = y == bottom - 1;
+        return (l, t, r, b) switch
+        {
+            (true, true, _, _) => "Top Left",
+            (_, true, true, _) => "Top Right",
+            (true, _, _, true) => "Bottom Left",
+            (_, _, true, true) => "Bottom Right",
+            _ => null,
+        };
+    }
+
+    public string? Update(string? corner)
+    {
+        if (corner == null) { _armed = true; return null; }
+        if (!_armed) return null;
+        _armed = false;
+        return corner;
     }
 }
 

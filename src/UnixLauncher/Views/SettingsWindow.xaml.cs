@@ -27,7 +27,8 @@ public partial class SettingsWindow : MacWindow
         new("General", "#8E8E93", "", "startup sign in login version log folder", w => w.General()),
         new("Appearance", "#5E5CE6", "", "menu bar background transparent font icons", w => w.Appearance()),
         new("Control Centre", "#8E8E93", "", "menu bar wi-fi bluetooth focus sound now playing battery spotlight modules", w => w.ControlCentrePage()),
-        new("Desktop & Dock", "#0A84FF", "", "dock size magnification position hide windows traffic lights buttons", w => w.DockPage()),
+        new("Desktop & Dock", "#0A84FF", "", "dock size magnification position hide windows traffic lights buttons hot corners mission control", w => w.DockPage()),
+        new("Keyboard", "#8E8E93", "\uE765", "keyboard command cmd alt mac shortcuts copy paste quit", w => w.KeyboardPage()),
         new("Windows Integration", "#FF9F0A", "", "explorer finder start launchpad search spotlight quick settings notifications taskbar shell replace", w => w.Integration()),
     };
 
@@ -127,11 +128,36 @@ public partial class SettingsWindow : MacWindow
                 Row("Hide Windows' own title bar buttons", "Covers minimise, maximise and close on the right while the round buttons are shown. " +
                     "Dragging there still moves the window.",
                     Switch(s.HideCaptionButtons, v => Set(x => x.HideCaptionButtons = v))),
-                Row("Leave these apps alone", "Exe names, comma separated, e.g. chrome.exe, msedge.exe",
+                Row("Leave these apps alone", "No round title bar buttons, Alt-as-⌘ or Windows-key changes in these apps, e.g. games you play in a " +
+                    "window or apps that use Alt+click. Exe names, comma separated, e.g. chrome.exe, blender.exe",
                     TextField(string.Join(", ", s.OverlayExclude),
                         t => Set(x => x.OverlayExclude = t.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToList())))),
+            Group("Hot Corners",
+                HotCornerRow("Top Left"), HotCornerRow("Top Right"), HotCornerRow("Bottom Left"), HotCornerRow("Bottom Right")),
         };
     }
+
+    FrameworkElement HotCornerRow(string corner) => Row(corner, null,
+        Choice(Settings.HotCornerActions, Settings.Current.HotCorners.GetValueOrDefault(corner, "-"),
+            v => Set(s => { if (v == "-") s.HotCorners.Remove(corner); else s.HotCorners[corner] = v; })));
+
+    FrameworkElement[] KeyboardPage() => new[]
+    {
+        Group(null,
+            Row("Use Alt as ⌘ Command", "Alt sits where ⌘ is on a Mac keyboard, so your Mac shortcuts work here too. It steps aside while a " +
+                "full-screen game is in front, and in apps listed under Desktop & Dock › Leave these apps alone.",
+                Switch(Settings.Current.MacShortcuts, v => Set(x => x.MacShortcuts = v)))),
+        Group("Shortcuts",
+            Row("⌘C ⌘V ⌘X ⌘Z ⌘A ⌘S ⌘F ⌘T ⌘N ⌘W ⌘P ⌘R ⌘1–9 ⌘= ⌘−", "Alt + the same key (apps receive Ctrl + that key)", null),
+            Row("⌘⇧Z  Redo", "Alt+Shift+Z", null),
+            Row("⌘Q  Quit app · ⌘H  Hide · ⌘M  Minimise · ⌘`  Next window", "Alt+Q · Alt+H · Alt+M · Alt+`", null),
+            Row("⌘← ⌘→  Line start / end · ⌘↑ ⌘↓  Top / bottom · ⌘⌫  Delete to line start", "Alt + arrows / Backspace; hold Shift to select", null),
+            Row("⌘[ ⌘]  Back / forward", "Alt+[ and Alt+]", null),
+            Row("⌘⇧3  Screenshot · ⌘⇧4 / ⌘⇧5  Select an area", "Alt+Shift+3, 4, 5", null),
+            Row("⌘Space  Spotlight · ⌘Tab  Switch apps", "Alt+Space and Alt+Tab (Windows' own app switcher)", null),
+            Row("Finder", "Return renames, ⌘↓ or ⌘O opens, ⌘⌫ moves to the Recycle Bin, ⌘⇧G goes to a folder, ⌘I gets info, " +
+                "⌘⇧H / ⌘⇧D / ⌘⇧C open Home / Desktop / This PC.", null)),
+    };
 
     FrameworkElement[] Integration()
     {

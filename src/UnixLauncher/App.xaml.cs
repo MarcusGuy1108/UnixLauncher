@@ -76,6 +76,7 @@ public partial class App : Application
         };
 
         ShortcutHook.Apply();
+        HotCorners.Start();
         if (Settings.Current.ReplaceExplorer) Sys.OpensFoldersInFinder = true; // re-point the handler if the exe has moved
         if (openFolder != null) FinderWindow.Open(openFolder);
 

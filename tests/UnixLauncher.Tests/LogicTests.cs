@@ -234,3 +234,123 @@ public class WinKeyFilterTests
         Assert.False(f.Handle(S, true).Swallow);
     }
 }
+
+public class WinKeyFilterGameTests
+{
+    [Fact]
+    public void DisabledFilterLeavesWinKeysToWindows() // a full-screen game is in front
+    {
+        var f = new WinKeyFilter { ReplaceStart = true, Enabled = false };
+        f.Combos[0x45] = "finder";
+        f.Handle(WinKeyFilter.LWin, true);
+        Assert.Equal(default, f.Handle(0x45, true));
+        Assert.Equal(default, f.Handle(WinKeyFilter.LWin, false));
+    }
+}
+
+public class MacKeyFilterTests
+{
+    const int Alt = MacKeyFilter.LAlt, C = 'C', Q = 'Q', Tab = 0x09, Shift = 0xA0, Ctrl = 0xA2, Left = 0x25, Z = 'Z';
+    static MacKeyFilter On() => new() { Enabled = true };
+    static MacKeyFilter.Key D(int vk) => new(vk, false);
+    static MacKeyFilter.Key U(int vk) => new(vk, true);
+
+    [Fact]
+    public void AltCSendsCtrlCAndWindowsNeverSeesAlt()
+    {
+        var f = On();
+        Assert.True(f.Handle(Alt, true).Swallow);
+        var r = f.Handle(C, true);
+        Assert.True(r.Swallow);
+        Assert.Equal(new[] { D(Ctrl), D(C), U(C), U(Ctrl) }, r.Send);
+        Assert.True(f.Handle(C, false).Swallow);
+        Assert.True(f.Handle(Alt, false).Swallow);
+    }
+
+    [Fact]
+    public void AltTabStillWorks() // not a Mac shortcut: Alt is replayed in front of Tab
+    {
+        var f = On();
+        f.Handle(Alt, true);
+        var r = f.Handle(Tab, true);
+        Assert.True(r.Swallow);
+        Assert.Equal(new[] { D(Alt), D(Tab) }, r.Send);
+        Assert.False(f.Handle(Tab, false).Swallow);
+        Assert.False(f.Handle(Tab, true).Swallow);    // further Tabs while held pass straight through
+        Assert.False(f.Handle(Alt, false).Swallow);   // Windows saw the press, so it sees the release
+    }
+
+    [Fact]
+    public void LoneAltTapDoesNothing() => Assert.True(Tap(On()));
+
+    static bool Tap(MacKeyFilter f) => f.Handle(Alt, true).Swallow && f.Handle(Alt, false).Swallow;
+
+    [Fact]
+    public void QuitAndArrows()
+    {
+        var f = On();
+        f.Handle(Alt, true);
+        Assert.Equal("quit", f.Handle(Q, true).Action);
+        Assert.Equal(new[] { D(0x24), U(0x24) }, f.Handle(Left, true).Send); // Home
+    }
+
+    [Fact]
+    public void ShiftZIsRedo()
+    {
+        var f = On();
+        f.Handle(Shift, true);
+        f.Handle(Alt, true);
+        Assert.Equal(new[] { U(Shift), D(Ctrl), D('Y'), U('Y'), U(Ctrl), D(Shift) }, f.Handle(Z, true).Send);
+    }
+
+    [Fact]
+    public void CtrlAltCombosAreLeftAlone() // e.g. Ctrl+Alt+Del, AltGr on some layouts
+    {
+        var f = On();
+        f.Handle(Ctrl, true);
+        Assert.False(f.Handle(Alt, true).Swallow);
+        Assert.Equal(default, f.Handle(C, true));
+    }
+
+    [Fact]
+    public void OffMeansPlainAlt()
+    {
+        var f = new MacKeyFilter { Enabled = false };
+        Assert.False(f.Handle(Alt, true).Swallow);
+        Assert.Equal(default, f.Handle(C, true));
+        Assert.False(f.Handle(Alt, false).Swallow);
+    }
+
+    [Fact]
+    public void RightAltIsNeverTouched() => Assert.Equal(default, On().Handle(0xA5, true));
+
+    [Fact]
+    public void AltEnterStaysFullScreenToggle() // games and video players use it
+    {
+        var f = On();
+        f.Handle(Alt, true);
+        Assert.Equal(new[] { D(Alt), D(0x0D) }, f.Handle(0x0D, true).Send); // replayed as a real Alt+Enter
+    }
+}
+
+public class HotCornerTests
+{
+    [Theory]
+    [InlineData(0, 0, "Top Left")]
+    [InlineData(1919, 0, "Top Right")]
+    [InlineData(0, 1079, "Bottom Left")]
+    [InlineData(1919, 1079, "Bottom Right")]
+    [InlineData(5, 0, null)]
+    [InlineData(2500, 0, null)] // a second monitor to the right
+    public void Corners(int x, int y, string? expected) => Assert.Equal(expected, HotCornerTrigger.At(x, y, 0, 0, 1920, 1080));
+
+    [Fact]
+    public void FiresOncePerVisit()
+    {
+        var t = new HotCornerTrigger();
+        Assert.Equal("Top Left", t.Update("Top Left"));
+        Assert.Null(t.Update("Top Left"));   // still there
+        Assert.Null(t.Update(null));          // left the corner
+        Assert.Equal("Top Left", t.Update("Top Left"));
+    }
+}

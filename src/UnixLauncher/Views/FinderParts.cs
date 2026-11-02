@@ -113,7 +113,7 @@ static class Prompt
         content.Children.Add(buttons);
         var w = new MacWindow
         {
-            Title = title, Owner = owner, SizeToContent = SizeToContent.WidthAndHeight, ShowInTaskbar = false,
+            Title = title, Owner = owner, SizeToContent = SizeToContent.WidthAndHeight, ShowInTaskbar = false, AnimateClose = false,
             WindowStartupLocation = WindowStartupLocation.CenterOwner, Content = content,
         };
         ok.Click += (_, _) => w.DialogResult = true;

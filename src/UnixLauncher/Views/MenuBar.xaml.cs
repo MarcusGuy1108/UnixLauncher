@@ -47,6 +47,7 @@ public partial class MenuBar : Window
         FocusBtn.Content = UI.Icon("focus", "\uE708", 13);
         BtBtn.Content = UI.Icon("bluetooth", "\uE702", 13);
         Settings.Changed += () => { ApplyBackground(); Refresh(force: true); };
+        _menuTracking.Tick += (_, _) => TrackMenus();
         Loaded += (_, _) => // macOS keeps a menu-bar item highlighted while its panel is open
         {
             Highlight(App.ControlCentre, CcBtn);
@@ -190,6 +191,40 @@ public partial class MenuBar : Window
         BuildAppMenus();
     }
 
+    // ---------- macOS menu tracking: while one menu is open, pointing at another title opens that one ----------
+    ContextMenu? _openMenu;
+    UIElement? _openFrom;
+    readonly DispatcherTimer _menuTracking = new() { Interval = TimeSpan.FromMilliseconds(40) };
+
+    void ShowBarMenu(ContextMenu menu, UIElement from)
+    {
+        _openMenu = menu;
+        _openFrom = from;
+        menu.Closed += (_, _) => { if (_openMenu == menu) _openMenu = null; };
+        UI.ShowMenu(menu, from);
+        _menuTracking.Start();
+    }
+
+    void TrackMenus()
+    {
+        if (_openMenu is not { IsOpen: true } open) { _menuTracking.Stop(); return; }
+        if (!Native.GetCursorPos(out var p)) return;
+        foreach (var title in new[] { LogoBtn, AppBtn }.Concat(AppMenus.Children.OfType<Button>()))
+        {
+            if (title == _openFrom || !title.IsVisible || !Contains(title, p)) continue;
+            open.IsOpen = false;
+            title.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent));
+            return;
+        }
+    }
+
+    static bool Contains(FrameworkElement el, Native.POINT p)
+    {
+        var a = el.PointToScreen(new Point(0, 0));
+        var b = el.PointToScreen(new Point(el.ActualWidth, el.ActualHeight));
+        return p.X >= a.X && p.X < b.X && p.Y >= a.Y && p.Y < b.Y;
+    }
+
     bool _finder; // the bar is showing Finder (a Finder window or the desktop is in front)
     Window? _ownApp; // the bar is showing one of the launcher's own windows (Settings)
 
@@ -202,8 +237,8 @@ public partial class MenuBar : Window
         AppBtn.Content = name;
         AppMenus.Children.Clear();
         var window = new Button { Style = (Style)FindResource("BarButton"), Content = "Window" };
-        window.Click += (_, _) => UI.ShowMenu(UI.Menu(
-            UI.Item("Minimise", () => w.WindowState = WindowState.Minimized),
+        window.Click += (_, _) => ShowBarMenu(UI.Menu(
+            UI.Item("Minimise", () => { if (w is MacWindow mac) mac.Minimise(); else w.WindowState = WindowState.Minimized; }),
             UI.Item("Zoom", () => (w as MacWindow)?.Zoom()),
             null,
             UI.Item("Close Window", w.Close, keys: "Ctrl+W")), window);
@@ -222,7 +257,7 @@ public partial class MenuBar : Window
         foreach (var (title, make) in FinderWindow.MenuBarMenus(fw))
         {
             var btn = new Button { Style = (Style)FindResource("BarButton"), Content = title };
-            btn.Click += (_, _) => UI.ShowMenu(make(), btn);
+            btn.Click += (_, _) => ShowBarMenu(make(), btn);
             AppMenus.Children.Add(btn);
         }
     }
@@ -250,7 +285,7 @@ public partial class MenuBar : Window
             AppMenus.Children.Add(btn);
         }
         var window = new Button { Style = (Style)FindResource("BarButton"), Content = "Window" };
-        window.Click += (_, _) => UI.ShowMenu(WindowMenu(target), window);
+        window.Click += (_, _) => ShowBarMenu(WindowMenu(target), window);
         AppMenus.Children.Add(window);
     }
 
@@ -307,7 +342,7 @@ public partial class MenuBar : Window
             UI.Item(Sys.TaskbarHidden ? "Show Windows Taskbar" : "Hide Windows Taskbar", () => { if (Sys.TaskbarHidden) Sys.ShowTaskbar(); else Sys.HideTaskbar(); }),
         ];
         // Same order as the Apple menu; the launcher's own items are grouped at the end.
-        UI.ShowMenu(UI.Menu(
+        ShowBarMenu(UI.Menu(
         [
             UI.Item("About This PC", () => new AboutWindow().Show()),
             null,
@@ -345,7 +380,7 @@ public partial class MenuBar : Window
     {
         if (_ownApp != null)
         {
-            UI.ShowMenu(UI.Menu(
+            ShowBarMenu(UI.Menu(
                 UI.Item("About UnixLauncher", () => new AboutWindow().Show()),
                 null,
                 UI.Item(App.ShellMode ? "Quit Launcher and Start Explorer" : "Quit Launcher", QuitLauncher)), AppBtn);
@@ -353,19 +388,19 @@ public partial class MenuBar : Window
         }
         if (_finder || _target == IntPtr.Zero || !Native.IsWindow(_target) || _targetInfo is not { } info)
         {
-            UI.ShowMenu(UI.Menu(
+            ShowBarMenu(UI.Menu(
                 UI.Item("About Finder", () => MessageBox.Show("Finder\n\nThe macOS-style file browser that comes with UnixLauncher.", "About Finder")),
                 null,
                 UI.Item("Empty Recycle Bin…", Sys.EmptyTrash, enabled: Sys.TrashHasItems()),
                 null,
-                UI.Item("Hide Finder", () => { foreach (var f in FinderWindow.All) f.WindowState = WindowState.Minimized; }),
+                UI.Item("Hide Finder", () => { foreach (var f in FinderWindow.All) f.Minimise(); }),
                 UI.Item("Hide Others", () => HideOthers("")),
                 UI.Item("Show All", ShowAll)), AppBtn);
             return;
         }
         string name = AppBtn.Content as string ?? "App";
         bool hasExe = info.Exe != null && !IsFrameHost(info.Exe);
-        UI.ShowMenu(UI.Menu(
+        ShowBarMenu(UI.Menu(
             UI.Item($"About {name}", () => About(name, info.Exe!), enabled: hasExe),
             null,
             UI.Item($"Hide {name}", () => HideApp(info.Key)),

@@ -787,7 +787,7 @@ public partial class FinderWindow : MacWindow
             {
                 var win = new List<MenuItem?>
                 {
-                    UI.Item("Minimise", () => w!.WindowState = WindowState.Minimized, enabled: w != null),
+                    UI.Item("Minimise", () => w!.Minimise(), enabled: w != null),
                     UI.Item("Zoom", () => w!.Zoom(), enabled: w != null),
                     null,
                 };
@@ -1000,40 +1000,75 @@ public partial class FinderWindow : MacWindow
     }
 
     // ---------- Keyboard (Windows keys for Finder's shortcuts) ----------
+    // ---------- Keyboard: Windows keys and macOS ones, with Alt standing in for ⌘ (it sits where ⌘ does) ----------
     void OnKeys(object sender, KeyEventArgs e)
     {
         var key = e.Key == Key.System ? e.SystemKey : e.Key;
         var mods = Keyboard.Modifiers;
         bool ctrl = mods.HasFlag(ModifierKeys.Control), alt = mods.HasFlag(ModifierKeys.Alt), shift = mods.HasFlag(ModifierKeys.Shift);
-        bool typing = SearchBox.IsKeyboardFocusWithin;
-        Action? act = (key, ctrl, alt, shift) switch
+        bool cmd = ctrl || alt, typing = SearchBox.IsKeyboardFocusWithin;
+        Action? act = (key, cmd, shift) switch
         {
-            (Key.F, true, false, _) => () => SearchBox.Focus(),
-            (Key.N, true, false, true) => NewFolder,
-            (Key.N, true, false, false) => () => Open(_current),
-            (Key.W, true, false, _) => Close,
-            (Key.D1, true, false, _) => () => SetView(false),
-            (Key.D2, true, false, _) => () => SetView(true),
-            (Key.Left, false, true, _) => Back,
-            (Key.Right, false, true, _) => Forward,
-            (Key.Up, false, true, _) => Up,
-            (Key.Enter, false, true, _) => GetInfo,
-            (Key.F2, false, false, _) => Rename,
-            (Key.F5, false, false, _) => () => { if (_searching) RunSearch(); else Reload(); },
-            (Key.Escape, false, false, _) when typing => () => { SearchBox.Text = ""; Files.Focus(); },
-            _ when typing => null,
-            (Key.Escape, false, false, _) when QuickLook.IsOpen => ToggleQuickLook,
-            (Key.Enter, false, false, _) => OpenSelected,
-            (Key.Back, false, false, _) => Back,
-            (Key.Delete, false, false, _) => MoveToTrash,
-            (Key.Space, false, false, _) => ToggleQuickLook,
-            (Key.C, true, false, false) => () => CopySelected(false),
-            (Key.X, true, false, false) => () => CopySelected(true),
-            (Key.V, true, false, false) => Paste,
+            // Window-level commands work everywhere, even while typing in the search box…
+            (Key.F, true, _) => () => SearchBox.Focus(),
+            (Key.N, true, true) => NewFolder,
+            (Key.N, true, false) => () => Open(_current),
+            (Key.W, true, _) => Close,
+            (Key.D1, true, _) => () => SetView(false),
+            (Key.D2, true, _) => () => SetView(true),
+            (Key.F5, false, _) => () => { if (_searching) RunSearch(); else Reload(); },
+            (Key.Escape, false, _) when typing => () => { SearchBox.Text = ""; Files.Focus(); },
+            // …but while typing, every other key belongs to the text (Ctrl+Backspace deletes a word, not files).
+            _ when typing => alt ? TextCommand(key) : null,  // ⌘C / ⌘V… in the search box
+            (Key.Left, _, _) when alt => Back,                // Windows: Alt+← / Alt+→
+            (Key.Right, _, _) when alt => Forward,
+            (Key.OemOpenBrackets, true, _) => Back,           // macOS: ⌘[ / ⌘]
+            (Key.OemCloseBrackets, true, _) => Forward,
+            (Key.Up, true, _) => Up,                          // ⌘↑ enclosing folder
+            (Key.Down, true, _) => OpenSelected,              // ⌘↓ open
+            (Key.O, true, false) => OpenSelected,
+            (Key.I, true, false) => GetInfo,
+            (Key.Enter, _, _) when alt => GetInfo,            // Windows: Alt+Enter
+            (Key.Back, true, true) => EmptyTrash,             // ⌘⇧⌫
+            (Key.Back, true, false) => MoveToTrash,           // ⌘⌫
+            (Key.G, true, true) => GoToFolder,                // ⌘⇧G
+            (Key.H, true, true) => () => Navigate(Home),      // ⌘⇧H / ⌘⇧D / ⌘⇧C
+            (Key.D, true, true) => () => Navigate(Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory)),
+            (Key.C, true, true) => () => Navigate(ThisPcPath),
+            (Key.F2, false, _) => Rename,
+            (Key.Escape, false, _) when QuickLook.IsOpen => ToggleQuickLook,
+            (Key.Enter, false, _) => Settings.Current.MacShortcuts ? Rename : OpenSelected, // Return renames in macOS Finder
+            (Key.Back, false, _) => Back,
+            (Key.Delete, false, _) => MoveToTrash,
+            (Key.Space, false, _) => ToggleQuickLook,
+            (Key.C, true, false) => () => CopySelected(false),
+            (Key.X, true, false) => () => CopySelected(true),
+            (Key.V, true, false) => Paste,
+            (Key.A, true, false) => () => Files.SelectAll(),
             _ => null,
         };
         if (act == null) return;
         act();
         e.Handled = true;
+    }
+
+    Action? TextCommand(Key key)
+    {
+        RoutedUICommand? command = key switch
+        {
+            Key.C => ApplicationCommands.Copy, Key.X => ApplicationCommands.Cut, Key.V => ApplicationCommands.Paste,
+            Key.A => ApplicationCommands.SelectAll, Key.Z => ApplicationCommands.Undo, _ => null,
+        };
+        return command == null ? null : () => command.Execute(null, SearchBox);
+    }
+
+    /// <summary>⌘⇧G: type a path (~ and %VARIABLES% work).</summary>
+    void GoToFolder()
+    {
+        var path = Prompt.Ask(this, "Go to Folder", Virtual ? Home : _current, selectAll: true);
+        if (string.IsNullOrWhiteSpace(path)) return;
+        path = Environment.ExpandEnvironmentVariables(path.Trim().Trim('"'));
+        if (path == "~" || path.StartsWith("~\\") || path.StartsWith("~/")) path = Home + path[1..];
+        Navigate(path);
     }
 }

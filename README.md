@@ -16,7 +16,9 @@ Built with C# / WPF on .NET 10.
 | **Dock** | Pinned apps, folders and files, plus a dot under running apps. Running apps that aren't pinned get their own section, and the Recycle Bin sits at the end. **Left / Bottom / Right**, icon size, magnification and auto-hide. Drag icons to reorder them. Drop `.exe`, `.lnk` or folders from Explorer onto it to pin them. Clicking a running app brings it forward, as on macOS. Clicking a folder (e.g. Downloads) opens a **stack** of its newest items. Right-click an icon for its windows, Keep / Remove, Show in File Explorer, Hide, Quit and Force Quit. Right-click the shelf for dock options. |
 | **Finder** | A macOS-style file browser, first in the dock. Sidebar (Favourites, **This PC**, drives, **Recycle Bin**), back / forward, **Icons** and **List** views (sortable Name / Date Modified / Size / Kind columns), search in the current folder and below, path bar and status bar. **Space** for Quick Look (pictures, text, or a summary card). New Folder, Rename, Move to Recycle Bin, Get Info (Windows Properties), Open With, copy / cut / paste (works with Explorer's clipboard), drag and drop in, out and onto sidebar places. Copies and moves use Windows' own progress and "replace or skip" dialogs. **This PC** lists every drive with its free space, and the path bar starts there. **Recycle Bin** opens inside Finder, with Put Back, Delete Immediately and Empty; drag files onto it in the sidebar to trash them, and the dock's Recycle Bin opens it too. Its menus show in the menu bar when it's in front, and also when the desktop is, as on macOS. Shortcuts: Ctrl+N new window, Ctrl+Shift+N new folder, F2 rename, Delete, Alt+Enter Get Info, Alt+←/→/↑ back / forward / enclosing folder, Ctrl+1/2 views, Ctrl+F search. |
 | **Window buttons** | The launcher's own windows have real traffic lights. Other apps get working round close / minimise / zoom buttons on the left of the focused window's title bar, and Windows' own buttons on the right are covered in the title bar's colour (drag there to move the window; double-click to zoom). Buttons a window doesn't have show grey. It's all overlay windows: nothing is injected into other apps or changed about them. |
-| **Animations** | Panels fade and grow in and fade out; windows zoom open; dock icons magnify and settle back; launches bounce; Launchpad zooms; banners slide in. Menus are translucent with a real blur. |
+| **Animations** | Panels fade and grow in and fade out. The launcher's windows zoom open, fade when closed and shrink towards the dock when minimised. Dock icons magnify and settle back, and bounce until the app's window appears. Launchpad zooms in and out, and banners slide in and out. Menus are translucent with a real blur, and once one menu is open, pointing at another menu bar title opens it, as on a Mac. All of it follows Windows' *Animation effects* setting (off = no motion, like macOS "Reduce motion"). |
+| **Keyboard** | Optional **Alt as ⌘**: Alt sits where ⌘ is on a Mac keyboard, so ⌘C/⌘V/⌘Q/⌘W/⌘←… work from muscle memory. See below. |
+| **Hot corners** | Settings › Desktop & Dock: Mission Control (Task View), Desktop, Launchpad, Notification Centre, Put Display to Sleep, Lock Screen. |
 | **Control Centre** | macOS 26 layout of glass pills and circles: Wi-Fi (with the network name), Bluetooth, Nearby sharing, Now Playing, Focus, Task View, Screen Mirroring (Cast), display brightness (laptops), volume with sound output, and Dark Mode / Calculator / Timer / Screenshot buttons. **Edit Controls** opens its settings. Right-click a toggle to open its Windows settings page. |
 | **Notification Centre** | Mirrors every app's Windows notifications, with dismiss and Clear All, plus a calendar widget. |
 | **Spotlight** | **Alt+Space**. Search apps, do quick maths (`12*7`), search files, search the web. |
@@ -49,6 +51,44 @@ All off by default, and each can be switched back at any time, under **Settings 
 The keyboard options use a low-level keyboard hook. It only reacts to those Windows-key combinations, and
 it injects an unused key code so the Start menu doesn't also pop up. If you move `UnixLauncher.exe`, the
 folder option repairs its registry entry the next time the launcher starts.
+
+## Using it alongside a Mac
+
+**Alt as ⌘ Command** (Settings › Keyboard, off by default). The key next to the space bar does what ⌘ does:
+
+| On your Mac | Here | What happens |
+|---|---|---|
+| ⌘C ⌘V ⌘X ⌘Z ⌘A ⌘S ⌘F ⌘T ⌘N ⌘W ⌘P ⌘R ⌘L ⌘1–9 ⌘= ⌘− | Alt + same key | Apps receive Ctrl + that key |
+| ⌘⇧Z | Alt+Shift+Z | Redo (Ctrl+Y) |
+| ⌘Q / ⌘H / ⌘M / ⌘` | Alt+Q / H / M / ` | Quit the app / hide it / minimise / next window of the app |
+| ⌘← ⌘→ / ⌘↑ ⌘↓ / ⌘⌫ | Alt + arrows / Backspace | Line start / end, top / bottom, delete to line start (hold Shift to select) |
+| ⌘[ ⌘] | Alt+[ / Alt+] | Back / forward |
+| ⌘⇧3 / ⌘⇧4 / ⌘⇧5 | Alt+Shift+3 / 4 / 5 | Whole-screen screenshot (saved to Pictures › Screenshots) / pick an area |
+| ⌘Space / ⌘Tab | Alt+Space / Alt+Tab | Spotlight / Windows' own app switcher, in the same place |
+
+How it behaves:
+
+- **Ctrl still works**, so Windows habits keep working too.
+- **A tap of Alt on its own does nothing**, as with ⌘.
+- **Alt combinations that aren't Mac shortcuts pass through unchanged:** Alt+Tab, Alt+F4, Alt+Enter (full screen in
+  games and players), and Ctrl+Alt+anything.
+- **Only the left Alt is used.** Right Alt (AltGr) types characters on many layouts.
+- **Finder follows macOS Finder:** Return renames, ⌘↓ opens, ⌘⌫ trashes, ⌘⇧G goes to a folder, ⌘I gets info.
+
+**Gaming.** Whenever a full-screen game (exclusive or borderless) is in front, the launcher steps aside:
+
+- The menu bar, dock and window buttons hide.
+- Alt-as-⌘, the Windows-key options and hot corners all pause, so every key reaches the game exactly as normal.
+
+For games you play in a window, add the exe under *Desktop & Dock › Leave these apps alone*. Do the same for
+apps that use Alt+click (Blender, Photoshop…).
+
+**Windows settings worth matching to your Mac** (these are Windows' own, so the launcher doesn't change them):
+
+- Settings › Bluetooth & devices › Touchpad › Three-finger gestures: swipe up = Task View (Mission Control), and set
+  left/right to *Switch desktops*.
+- Settings › Bluetooth & devices › Touchpad › Scroll & zoom: *Down motion scrolls up* = natural scrolling.
+- Settings › Accessibility › Visual effects: *Animation effects* controls the launcher's animations too.
 
 ## Uninstalling
 
@@ -157,6 +197,12 @@ knowing:
   on the Focus tile.
 - The Win key still opens the Windows Start menu (on-top mode).
 - Spotlight's hotkey is fixed to Alt+Space, so it clashes with PowerToys Run if you use that.
+- With Alt as ⌘ on, Left Alt+Shift no longer switches keyboard language (use Win+Space, as on a Mac
+  ⌃Space), and Alt+click becomes a plain click unless the app is in the "leave alone" list.
+- The Windows key is where ⌥ Option sits on a Mac, but it isn't remapped: Win+arrows still snap windows rather than
+  jumping by word. Ctrl+arrows jump by word, as on Windows.
+- Other apps' windows minimise, maximise and open with Windows' own animations; only the launcher's own windows
+  get the macOS ones. Alt+Tab is Windows' switcher (it shows windows rather than macOS's row of app icons).
 - Mirrored app menus only work for apps with a classic Windows menu bar (e.g. Notepad++, Registry
   Editor, older tools). Browsers, Store apps, Electron apps and Office draw their own, so they just
   get the Window menu. Those menus use Windows' own (dark) menu style.

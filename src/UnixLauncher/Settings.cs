@@ -39,6 +39,14 @@ public class Settings
     public bool ReplaceQuickSettings { get; set; }  // Win+A opens Control Centre
     public bool ReplaceNotifications { get; set; }  // Win+N opens Notification Centre
 
+    /// <summary>Alt works like the Mac's ⌘ key (Settings › Keyboard). Off by default: it changes how Alt behaves everywhere.</summary>
+    public bool MacShortcuts { get; set; }
+
+    /// <summary>macOS hot corners: corner ("Top Left"…) → action ("Mission Control"…). Empty = none.</summary>
+    public Dictionary<string, string> HotCorners { get; set; } = new();
+    public static readonly string[] HotCornerActions =
+        { "-", "Mission Control", "Desktop", "Launchpad", "Notification Centre", "Put Display to Sleep", "Lock Screen" };
+
     /// <summary>macOS 26 "Show menu bar background"; off = fully transparent bar.</summary>
     public bool MenuBarBackground { get; set; } = true;
 

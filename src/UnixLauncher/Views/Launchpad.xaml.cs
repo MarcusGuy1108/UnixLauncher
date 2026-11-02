@@ -12,7 +12,6 @@ namespace UnixLauncher.Views;
 public partial class Launchpad : Popover
 {
     protected override bool UseGlass => false; // full-screen: the plain rectangular blur fits it
-    protected override bool Animated => false;  // it has its own zoom (OnOpening)
 
     public Launchpad()
     {
@@ -30,14 +29,24 @@ public partial class Launchpad : Popover
         Height = SystemParameters.PrimaryScreenHeight;
         Query.Text = "";
         Filter();
-        // macOS: the grid settles in from slightly larger while the backdrop fades in.
+    }
+
+    // macOS: the grid settles in from slightly larger while the backdrop fades in, and zooms back out on close.
+    protected override void AnimateIn(FrameworkElement root) => Zoom(1.08, 1, 0, 1, EasingMode.EaseOut, null);
+    protected override void AnimateOut(FrameworkElement root, Action done) => Zoom(1, 1.08, 1, 0, EasingMode.EaseIn, done);
+
+    void Zoom(double fromScale, double toScale, double fromOpacity, double toOpacity, EasingMode easing, Action? done)
+    {
+        if (!UI.Motion) { BeginAnimation(OpacityProperty, null); done?.Invoke(); return; }
         var dur = TimeSpan.FromMilliseconds(220);
-        var ease = new CubicEase { EasingMode = EasingMode.EaseOut };
+        var ease = new CubicEase { EasingMode = easing };
         var zoom = new ScaleTransform();
         Page.RenderTransform = zoom;
-        zoom.BeginAnimation(ScaleTransform.ScaleXProperty, new DoubleAnimation(1.08, 1, dur) { EasingFunction = ease });
-        zoom.BeginAnimation(ScaleTransform.ScaleYProperty, new DoubleAnimation(1.08, 1, dur) { EasingFunction = ease });
-        BeginAnimation(OpacityProperty, new DoubleAnimation(0, 1, dur));
+        zoom.BeginAnimation(ScaleTransform.ScaleXProperty, new DoubleAnimation(fromScale, toScale, dur) { EasingFunction = ease });
+        zoom.BeginAnimation(ScaleTransform.ScaleYProperty, new DoubleAnimation(fromScale, toScale, dur) { EasingFunction = ease });
+        var fade = new DoubleAnimation(fromOpacity, toOpacity, dur);
+        if (done != null) fade.Completed += (_, _) => { done(); BeginAnimation(OpacityProperty, null); };
+        BeginAnimation(OpacityProperty, fade);
     }
 
     void Filter()
@@ -59,7 +68,7 @@ public partial class Launchpad : Popover
 
     void Launch(AppEntry app)
     {
-        Hide();
+        Dismiss(); // zooms away while the app starts, as on macOS
         Sys.Launch(app.Launch);
     }
 
@@ -78,6 +87,6 @@ public partial class Launchpad : Popover
 
     void Background_Click(object sender, MouseButtonEventArgs e)
     {
-        if (e.OriginalSource == sender) Hide(); // empty space, like macOS
+        if (e.OriginalSource == sender) Dismiss(); // empty space, like macOS
     }
 }

@@ -301,15 +301,23 @@ public partial class DockWindow : Window
         Native.Activate((wins.FirstOrDefault(w => !Native.IsIconic(w.Hwnd)) ?? wins[0]).Hwnd);
     }
 
+    /// <summary>
+    /// macOS launch bounce: keeps going until the app's first window appears. That changes the dock's running state, which
+    /// rebuilds the icons and so ends the bounce; apps that never show a window stop after 10 seconds.
+    /// </summary>
     void Bounce(FrameworkElement visual)
     {
+        if (!UI.Motion) return;
         var t = (TranslateTransform)visual.RenderTransform;
+        var axis = Vertical ? TranslateTransform.XProperty : TranslateTransform.YProperty;
         double h = IconSize * 0.4 * (Edge == "Left" ? 1 : -1);
-        var anim = new DoubleAnimation(0, h, TimeSpan.FromMilliseconds(220))
+        t.BeginAnimation(axis, new DoubleAnimation(0, h, TimeSpan.FromMilliseconds(300))
         {
-            AutoReverse = true, RepeatBehavior = new RepeatBehavior(2), EasingFunction = new QuadraticEase { EasingMode = EasingMode.EaseOut },
-        };
-        t.BeginAnimation(Vertical ? TranslateTransform.XProperty : TranslateTransform.YProperty, anim);
+            AutoReverse = true, RepeatBehavior = RepeatBehavior.Forever, EasingFunction = new QuadraticEase { EasingMode = EasingMode.EaseOut },
+        });
+        var giveUp = new DispatcherTimer { Interval = TimeSpan.FromSeconds(10) };
+        giveUp.Tick += (_, _) => { giveUp.Stop(); t.BeginAnimation(axis, null); };
+        giveUp.Start();
     }
 
     // ---------- Menus ----------
@@ -353,7 +361,7 @@ public partial class DockWindow : Window
         if (wins.Count > 0 && e.Pin?.Launch == "::finder")
         {
             items.Add(null);
-            items.Add(UI.Item("Hide", () => { foreach (var f in FinderWindow.All) f.WindowState = WindowState.Minimized; }));
+            items.Add(UI.Item("Hide", () => { foreach (var f in FinderWindow.All) f.Minimise(); }));
             items.Add(UI.Item("Quit", () => { foreach (var f in FinderWindow.All.ToList()) f.Close(); }));
         }
         else if (wins.Count > 0)
@@ -397,7 +405,7 @@ public partial class DockWindow : Window
         {
             if (_visuals[i] is not { } v) continue;
             double size = IconSize * scales[i];
-            if (mouse == null && Math.Abs(v.ActualWidth - size) > 0.5)
+            if (mouse == null && UI.Motion && Math.Abs(v.ActualWidth - size) > 0.5)
             {
                 // The pointer left: settle back smoothly, as the macOS dock does.
                 var settle = new DoubleAnimation(v.ActualWidth, size, TimeSpan.FromMilliseconds(180))
@@ -431,7 +439,7 @@ public partial class DockWindow : Window
     {
         _autoShown = show;
         double dist = Thickness + EdgeMargin + 10;
-        var anim = new DoubleAnimation(show ? 0 : (Edge == "Left" ? -dist : dist), TimeSpan.FromMilliseconds(180));
+        var anim = new DoubleAnimation(show ? 0 : (Edge == "Left" ? -dist : dist), TimeSpan.FromMilliseconds(UI.Motion ? 180 : 0));
         // The backdrop can't follow a WPF animation: drop it while sliding out, bring it back once in place.
         if (show) anim.Completed += (_, _) => SyncGlass(); else SyncGlass();
         Slide.BeginAnimation(Vertical ? TranslateTransform.XProperty : TranslateTransform.YProperty, anim);

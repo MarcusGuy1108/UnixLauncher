@@ -97,14 +97,22 @@ static class Banner
         w.Closed += (_, _) => { if (_current == w) _current = null; };
         _current = w;
         w.Show();
-        // Slide in from the right edge like a macOS banner.
-        w.BeginAnimation(Window.LeftProperty, new DoubleAnimation(SystemParameters.PrimaryScreenWidth, w.Left, TimeSpan.FromMilliseconds(280))
-        {
-            EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut },
-        });
+        // Slide in from the right edge like a macOS banner, and back out when it times out.
+        if (UI.Motion)
+            w.BeginAnimation(Window.LeftProperty, new DoubleAnimation(SystemParameters.PrimaryScreenWidth, w.Left, TimeSpan.FromMilliseconds(280))
+            {
+                EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut },
+            });
 
         var timer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(5) };
-        timer.Tick += (_, _) => { timer.Stop(); w.Close(); };
+        timer.Tick += (_, _) =>
+        {
+            timer.Stop();
+            if (!UI.Motion) { w.Close(); return; }
+            var away = new DoubleAnimation(SystemParameters.PrimaryScreenWidth, TimeSpan.FromMilliseconds(240)) { EasingFunction = new CubicEase { EasingMode = EasingMode.EaseIn } };
+            away.Completed += (_, _) => w.Close();
+            w.BeginAnimation(Window.LeftProperty, away);
+        };
         timer.Start();
     }
 }

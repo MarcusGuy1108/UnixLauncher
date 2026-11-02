@@ -94,10 +94,23 @@ static class UI
     }
 
     static readonly IEasingFunction EaseOut = new CubicEase { EasingMode = EasingMode.EaseOut };
+    static readonly IEasingFunction EaseIn = new CubicEase { EasingMode = EasingMode.EaseIn };
+
+    /// <summary>
+    /// Windows' "Animation effects" switch (Settings › Accessibility › Visual effects). Off = no launcher animations either,
+    /// the same as macOS "Reduce motion".
+    /// </summary>
+    public static bool Motion => SystemParameters.ClientAreaAnimation;
 
     /// <summary>macOS-style appearance: a quick fade in while growing from slightly smaller.</summary>
     public static void PopIn(FrameworkElement el, double from = 0.96, Point? origin = null, int ms = 180)
     {
+        if (!Motion)
+        {
+            el.BeginAnimation(UIElement.OpacityProperty, null);
+            el.RenderTransform = null;
+            return;
+        }
         var dur = TimeSpan.FromMilliseconds(ms);
         var scale = new ScaleTransform(from, from);
         el.RenderTransformOrigin = origin ?? new Point(0.5, 0.5);
@@ -105,6 +118,21 @@ static class UI
         scale.BeginAnimation(ScaleTransform.ScaleXProperty, new DoubleAnimation(from, 1, dur) { EasingFunction = EaseOut });
         scale.BeginAnimation(ScaleTransform.ScaleYProperty, new DoubleAnimation(from, 1, dur) { EasingFunction = EaseOut });
         el.BeginAnimation(UIElement.OpacityProperty, new DoubleAnimation(0, 1, dur));
+    }
+
+    /// <summary>The reverse of PopIn: fade while shrinking, then <paramref name="done"/>. The element is left invisible.</summary>
+    public static void PopOut(FrameworkElement el, Action done, double to = 0.97, Point? origin = null, int ms = 140)
+    {
+        if (!Motion) { done(); return; }
+        var dur = TimeSpan.FromMilliseconds(ms);
+        var scale = new ScaleTransform(1, 1);
+        el.RenderTransformOrigin = origin ?? new Point(0.5, 0.5);
+        el.RenderTransform = scale;
+        scale.BeginAnimation(ScaleTransform.ScaleXProperty, new DoubleAnimation(1, to, dur) { EasingFunction = EaseIn });
+        scale.BeginAnimation(ScaleTransform.ScaleYProperty, new DoubleAnimation(1, to, dur) { EasingFunction = EaseIn });
+        var fade = new DoubleAnimation(0, dur);
+        fade.Completed += (_, _) => done();
+        el.BeginAnimation(UIElement.OpacityProperty, fade);
     }
 
     /// <summary>Blur behind a menu, clipped to its 12px rounded corners (menus are WPF popups, which are layered windows).</summary>
@@ -173,10 +201,10 @@ public class Popover : Window
         };
     }
 
-    /// <summary>Launchpad runs its own zoom instead.</summary>
-    protected virtual bool Animated => true;
     /// <summary>Where the pop-in grows from: the top edge for panels that drop down from the menu bar.</summary>
     protected virtual Point AnimationOrigin => new(0.5, 0);
+    protected virtual void AnimateIn(FrameworkElement root) => UI.PopIn(root, origin: AnimationOrigin);
+    protected virtual void AnimateOut(FrameworkElement root, Action done) => UI.PopOut(root, done, origin: AnimationOrigin);
 
     int _shown; // bumped on every Open so a fade-out that's still running can't hide the reopened panel
 
@@ -188,23 +216,21 @@ public class Popover : Window
         OnOpening();
         Show();
         UI.BringToFront(this);
-        if (Animated && Content is FrameworkElement root) UI.PopIn(root, origin: AnimationOrigin);
+        if (Content is FrameworkElement root) AnimateIn(root);
     }
 
     /// <summary>Close the way macOS panels do: a short fade, then hide.</summary>
     public void Dismiss()
     {
         if (!IsVisible) return;
-        if (!Animated || Content is not FrameworkElement root) { Hide(); return; }
+        if (Content is not FrameworkElement root) { Hide(); return; }
         int shown = _shown;
-        var fade = new DoubleAnimation(0, TimeSpan.FromMilliseconds(120));
-        fade.Completed += (_, _) =>
+        AnimateOut(root, () =>
         {
             if (shown != _shown) return;
             Hide();
             root.BeginAnimation(OpacityProperty, null);
-        };
-        root.BeginAnimation(OpacityProperty, fade);
+        });
     }
 
     protected virtual void OnOpening() { }
@@ -221,6 +247,10 @@ public class MacWindow : Window
 {
     Rect? _restore;
     readonly bool _glass;
+    bool _closingNow, _minimised;
+
+    /// <summary>Close with a short fade, like macOS. Turn off for dialogs (ShowDialog), so their result isn't disturbed.</summary>
+    public bool AnimateClose { get; set; } = true;
 
     /// <summary>Finder-style: no title bar row; content fills the window and draws its own toolbar beside the lights.</summary>
     protected bool UnifiedToolbar { get; set; }
@@ -254,10 +284,43 @@ public class MacWindow : Window
             if (!_glass) content.SizeChanged += (_, e) => content.Clip = new RectangleGeometry(new Rect(e.NewSize), 10, 10);
         }
         if (GetTemplateChild("PART_Close") is Button close) close.Click += (_, _) => Close();
-        if (GetTemplateChild("PART_Min") is Button min) min.Click += (_, _) => WindowState = WindowState.Minimized;
+        if (GetTemplateChild("PART_Min") is Button min) min.Click += (_, _) => Minimise();
         if (GetTemplateChild("PART_Zoom") is Button zoom) zoom.Click += (_, _) => Zoom();
         if (GetTemplateChild("PART_TitleBar") is FrameworkElement bar)
             bar.MouseLeftButtonDown += (_, e) => { if (e.ClickCount == 2) Zoom(); else DragMove(); };
+    }
+
+    FrameworkElement? Root => GetTemplateChild("PART_Root") as FrameworkElement;
+
+    protected override void OnClosing(System.ComponentModel.CancelEventArgs e)
+    {
+        base.OnClosing(e);
+        if (e.Cancel || _closingNow || !AnimateClose || !UI.Motion || Root is not { } root) return;
+        e.Cancel = true; // close after the fade
+        _closingNow = true;
+        UI.PopOut(root, () => Dispatcher.BeginInvoke(() => { if (IsVisible) Close(); }), 0.96);
+    }
+
+    /// <summary>macOS "Scale" minimise: shrink down towards the dock, then minimise.</summary>
+    public void Minimise()
+    {
+        if (Root is not { } root) { WindowState = WindowState.Minimized; return; }
+        UI.PopOut(root, () =>
+        {
+            WindowState = WindowState.Minimized;
+            root.BeginAnimation(OpacityProperty, null);
+        }, 0.6, new Point(0.5, 1), 200);
+    }
+
+    protected override void OnStateChanged(EventArgs e)
+    {
+        base.OnStateChanged(e);
+        if (WindowState == WindowState.Minimized) _minimised = true;
+        else if (_minimised && Root is { } root)
+        {
+            _minimised = false;
+            UI.PopIn(root, 0.6, new Point(0.5, 1), 220); // grow back up out of the dock
+        }
     }
 
     protected override void OnSourceInitialized(EventArgs e)
