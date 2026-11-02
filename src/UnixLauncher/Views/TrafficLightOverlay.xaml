@@ -6,8 +6,6 @@
         Width="80" Height="28" Title="Window Controls">
     <!-- Near-transparent background: the whole strip takes the mouse (dragging it moves the window) -->
     <Grid x:Name="Root" Background="#01000000">
-        <!-- Ordinary title bars: filled with the title bar's colour so the app's icon and title start don't show through -->
-        <Border x:Name="Backing"/>
         <!-- Pointing here: a rounded glass pill fades in behind the buttons -->
         <Border x:Name="Pill" Margin="2" CornerRadius="12" Background="#E62C2C2E" BorderBrush="#33FFFFFF" BorderThickness="0.5" Opacity="0">
             <Border.Effect>

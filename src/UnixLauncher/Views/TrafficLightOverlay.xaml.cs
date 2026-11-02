@@ -56,7 +56,7 @@ public partial class TrafficLightOverlay : Window
 
         Root.MouseLeftButtonDown += (_, e) =>
         {
-            if (e.OriginalSource != Root && e.OriginalSource != Backing && e.OriginalSource != Pill) return; // the buttons handle their own clicks
+            if (e.OriginalSource != Root && e.OriginalSource != Pill) return; // the buttons handle their own clicks
             if (e.ClickCount == 2) { Zoom_Click(this, e); return; }
             Native.ReleaseCapture();
             Native.PostMessage(_target, Native.WM_SYSCOMMAND, new IntPtr(0xF012), IntPtr.Zero); // drag the window from here too
@@ -86,16 +86,10 @@ public partial class TrafficLightOverlay : Window
         if (_sampledFor != (fg, buttons.Width, buttons.Height)) // new window or new size (maximise/restore): re-read its title bar colour
         {
             _sampledFor = (fg, buttons.Width, buttons.Height);
-            if (SampleTitleBar(buttons) is { } c) Backing.Background = _coverFill.Background = new SolidColorBrush(c);
-            // Chromium/Electron draw their own title bar: no backing. If that corner holds something (a browser's first tab),
-            // the buttons wait for the pointer; if it's empty (Discord), they stay. Read before we draw there.
-            if (!IsChromium(fg)) _busy = false;
-            else
-            {
-                Backing.Background = null;
-                // While the pill shows we'd only read our own pill, so keep the last answer.
-                if (!_revealed) _busy = CornerBusy(new Native.RECT { Left = x, Top = y, Right = x + (int)(Width * s), Bottom = y + (int)(Height * s) }, s);
-            }
+            if (SampleTitleBar(buttons) is { } c) _coverFill.Background = new SolidColorBrush(c);
+            // If the app draws something in that corner (a tab, its icon, its title), the buttons wait for the pointer and
+            // come with the pill; if the corner is empty (Discord), they stay. Painting over it never matched (Mica, tabs).
+            _busy = CornerBusy(new Native.RECT { Left = x, Top = y, Right = x + (int)(Width * s), Bottom = y + (int)(Height * s) }, s);
             ApplyReveal(animate: false);
         }
         // Never draw over something that is on top of the app (a flyout, a dialog, another window): the buttons belong under it.
@@ -138,26 +132,32 @@ public partial class TrafficLightOverlay : Window
     }
 
     /// <summary>
-    /// Does the app draw something in the buttons' corner? Reads a row of pixels just above and just below where the dots go
-    /// (our own window is see-through there): an empty title bar is one flat colour, a tab or an icon isn't.
+    /// Does the app draw something in the buttons' corner? Copies that corner of the screen once (a plain BitBlt leaves out
+    /// layered windows, so our own buttons and pill aren't in the copy) and checks it is one flat colour, as an empty title bar is.
     /// </summary>
     static bool CornerBusy(Native.RECT area, double scale)
     {
-        IntPtr dc = Native.GetDC(IntPtr.Zero);
+        int w = area.Right - area.Left, h = area.Bottom - area.Top;
+        IntPtr screen = Native.GetDC(IntPtr.Zero), mem = Native.CreateCompatibleDC(screen), bmp = Native.CreateCompatibleBitmap(screen, w, h);
+        IntPtr old = Native.SelectObject(mem, bmp);
         try
         {
-            uint? first = null;
-            foreach (int y in new[] { area.Top + (int)(3 * scale), area.Bottom - (int)(3 * scale) })
-                for (int i = 0; i < 6; i++)
-                {
-                    uint c = Native.GetPixel(dc, area.Left + (int)((4 + i * 14) * scale), y);
-                    if (c == 0xFFFFFFFF) return false; // unreadable: assume empty
-                    first ??= c;
-                    if (Diff(c, first.Value) > 24) return true;
-                }
+            if (!Native.BitBlt(mem, 0, 0, w, h, screen, area.Left, area.Top, 0x00CC0020)) return false; // SRCCOPY; unreadable: assume empty
+            // Skip the window's rounded corner (the wallpaper shows there) and the very edges.
+            int x0 = (int)(8 * scale), y0 = (int)(5 * scale), x1 = w - (int)(3 * scale), y1 = h - (int)(3 * scale), step = Math.Max(1, (int)scale);
+            uint first = Native.GetPixel(mem, x0, y0);
+            for (int y = y0; y < y1; y += step)
+                for (int x = x0; x < x1; x += step)
+                    if (Diff(Native.GetPixel(mem, x, y), first) > 24) return true;
             return false;
         }
-        finally { Native.ReleaseDC(IntPtr.Zero, dc); }
+        finally
+        {
+            Native.SelectObject(mem, old);
+            Native.DeleteObject(bmp);
+            Native.DeleteDC(mem);
+            Native.ReleaseDC(IntPtr.Zero, screen);
+        }
     }
 
     static int Diff(uint a, uint b) =>

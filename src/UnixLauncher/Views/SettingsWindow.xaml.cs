@@ -123,7 +123,7 @@ public partial class SettingsWindow : MacWindow
                 Row("Position on screen", null, Choice(new[] { "Left", "Bottom", "Right" }, s.DockPosition, v => Set(x => x.DockPosition = v))),
                 Row("Automatically hide and show the Dock", null, Switch(s.DockAutoHide, v => Set(x => x.DockAutoHide = v)))),
             Group("Windows",
-                Row("Show red, yellow and green buttons on other apps' windows", "A small overlay on the focused window's title bar.",
+                Row("Show red, yellow and green buttons on other apps' windows", "On the focused window's top-left corner. Where the app already has something there (a tab, its icon), they appear in a glass pill when you point at the corner.",
                     Switch(s.TrafficLightOverlay, v => Set(x => x.TrafficLightOverlay = v))),
                 Row("Hide Windows' own title bar buttons", "Covers minimise, maximise and close on the right while the round buttons are shown. " +
                     "Dragging there still moves the window.",
