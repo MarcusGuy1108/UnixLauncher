@@ -129,6 +129,39 @@ static class Sys
         }
     }
 
+    // ---------- Finder as the folder handler ----------
+    // Same mechanism Explorer replacements use: a per-user default verb on folders and drives, so double-clicking
+    // a folder anywhere (desktop, Explorer, "Open folder" in other apps) runs us with that path.
+    const string FolderVerb = "UnixLauncher.Finder";
+    static readonly string[] FolderClasses = { @"Software\Classes\Directory\shell", @"Software\Classes\Drive\shell" };
+
+    public static bool OpensFoldersInFinder
+    {
+        get { using var k = Registry.CurrentUser.OpenSubKey(FolderClasses[0]); return k?.GetValue("") as string == FolderVerb; }
+        set
+        {
+            foreach (var cls in FolderClasses)
+            {
+                if (value)
+                {
+                    using var shell = Registry.CurrentUser.CreateSubKey(cls);
+                    shell.SetValue("", FolderVerb);
+                    using var verb = shell.CreateSubKey(FolderVerb);
+                    verb.SetValue("", "Open in Finder");
+                    using var cmd = verb.CreateSubKey("command");
+                    cmd.SetValue("", $"\"{ExePath}\" --open \"%1\"");
+                }
+                else
+                {
+                    using var shell = Registry.CurrentUser.OpenSubKey(cls, writable: true);
+                    if (shell == null) continue;
+                    if (shell.GetValue("") as string == FolderVerb) shell.DeleteValue("", false); // only undo our own change
+                    shell.DeleteSubKeyTree(FolderVerb, false);
+                }
+            }
+        }
+    }
+
     // ---------- Startup apps (Explorer normally does this; in shell mode we must) ----------
     public static void RunStartupAppsOnce()
     {

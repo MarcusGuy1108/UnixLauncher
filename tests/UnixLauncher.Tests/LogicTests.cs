@@ -176,3 +176,61 @@ public class FinderLogicTests
         Assert.False(FileNames.IsSameOrInside(@"C:\Users\meow", @"C:\Users\me"));
     }
 }
+
+public class WinKeyFilterTests
+{
+    const int Win = WinKeyFilter.LWin, E = 0x45, D = 0x44, S = 0x53, Shift = 0xA0;
+
+    static WinKeyFilter Filter(bool start = false)
+    {
+        var f = new WinKeyFilter { ReplaceStart = start };
+        f.Combos[E] = "finder";
+        f.Combos[S] = "spotlight";
+        return f;
+    }
+
+    [Fact]
+    public void LoneWinTapOpensLaunchpadAndMasksStart()
+    {
+        var f = Filter(start: true);
+        f.Handle(Win, true);
+        Assert.Equal(new WinKeyFilter.Result(false, "launchpad", true), f.Handle(Win, false));
+    }
+
+    [Fact]
+    public void LoneWinTapIsLeftAloneWhenStartNotReplaced()
+    {
+        var f = Filter();
+        f.Handle(Win, true);
+        Assert.Equal(default, f.Handle(Win, false));
+    }
+
+    [Fact]
+    public void WinEIsTakenOverOnceAndStartIsMasked()
+    {
+        var f = Filter();
+        f.Handle(Win, true);
+        Assert.Equal(new WinKeyFilter.Result(true, "finder", false), f.Handle(E, true));
+        Assert.Equal(new WinKeyFilter.Result(true, null, false), f.Handle(E, true));   // auto-repeat: swallowed, no second window
+        Assert.True(f.Handle(E, false).Swallow);                                          // and its release
+        Assert.True(f.Handle(Win, false).InjectMask);
+    }
+
+    [Fact]
+    public void OtherShortcutsPassThrough()
+    {
+        var f = Filter(start: true);
+        f.Handle(Win, true);
+        Assert.Equal(default, f.Handle(D, true));     // Win+D isn't ours
+        Assert.Equal(default, f.Handle(Win, false));  // Windows saw a combo: no mask, no Launchpad
+    }
+
+    [Fact]
+    public void WinShiftSStaysWithWindows() // screenshot shortcut must not become Spotlight
+    {
+        var f = Filter();
+        f.Handle(Win, true);
+        f.Handle(Shift, true);
+        Assert.False(f.Handle(S, true).Swallow);
+    }
+}

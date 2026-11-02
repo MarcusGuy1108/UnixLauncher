@@ -192,6 +192,59 @@ public static class FileNames
     }
 }
 
+/// <summary>
+/// Decides what to do with each key event so Windows-key shortcuts can be taken over (Win+E → Finder, Win alone →
+/// Launchpad…). Windows opens Start when it sees Win pressed and released with nothing in between, so when we
+/// swallow the other key (or want the lone Win ourselves) we ask for an unused "mask" key to be injected first.
+/// </summary>
+public sealed class WinKeyFilter
+{
+    public const int LWin = 0x5B, RWin = 0x5C;
+    static readonly int[] Modifiers = { 0x10, 0x11, 0x12, 0xA0, 0xA1, 0xA2, 0xA3, 0xA4, 0xA5 }; // Shift, Ctrl, Alt (either side)
+
+    /// <summary>Virtual key pressed with Win (and no Shift/Ctrl/Alt) → action name.</summary>
+    public Dictionary<int, string> Combos { get; } = new();
+    /// <summary>A lone Win tap gives the "launchpad" action instead of opening Start.</summary>
+    public bool ReplaceStart { get; set; }
+
+    public readonly record struct Result(bool Swallow, string? Action, bool InjectMask);
+
+    bool _winHeld, _passedOther, _swallowedOther;
+    readonly HashSet<int> _swallowed = new(), _modsHeld = new();
+
+    public Result Handle(int vk, bool down)
+    {
+        if (vk is LWin or RWin)
+        {
+            if (down)
+            {
+                if (!_winHeld) { _winHeld = true; _passedOther = _swallowedOther = false; } // ignore auto-repeat
+                return default;
+            }
+            _winHeld = false;
+            if (_passedOther) return default;                       // Windows saw a real Win+key combo: no Start anyway
+            if (_swallowedOther) return new(false, null, true);     // it only saw Win: mask it so Start stays shut
+            return ReplaceStart ? new(false, "launchpad", true) : default;
+        }
+        if (Array.IndexOf(Modifiers, vk) >= 0)
+        {
+            if (down) _modsHeld.Add(vk); else _modsHeld.Remove(vk);
+            if (_winHeld && down) _passedOther = true;
+            return default;
+        }
+        if (!down) return new(_swallowed.Remove(vk), null, false); // swallow the release of a press we swallowed
+        if (!_winHeld) return default;
+        if (_modsHeld.Count == 0 && Combos.TryGetValue(vk, out var action))
+        {
+            _swallowedOther = true;
+            bool repeat = !_swallowed.Add(vk);
+            return new(true, repeat ? null : action, false); // held key auto-repeats: act once
+        }
+        _passedOther = true;
+        return default;
+    }
+}
+
 public static class MenuText
 {
     /// <summary>Win32 menu caption → display text: drop the shortcut after a tab and the &amp; accelerator marks.</summary>

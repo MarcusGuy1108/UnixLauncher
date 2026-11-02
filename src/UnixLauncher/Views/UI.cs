@@ -79,15 +79,23 @@ static class UI
     public static double Scale(Visual v) => PresentationSource.FromVisual(v)?.CompositionTarget?.TransformToDevice.M11 ?? 1;
 
     /// <summary>A user-supplied icon (icons/&lt;name&gt;.png) if present, else a Segoe Fluent/MDL2 glyph.</summary>
-    public static FrameworkElement Icon(string overrideName, string glyph, double size)
+    /// <param name="inheritColor">Leave the glyph colour to the container (e.g. a Control Centre button that turns it blue when on).</param>
+    public static FrameworkElement Icon(string overrideName, string glyph, double size, bool inheritColor = false)
     {
         if (Icons.Override(overrideName) is { } img) return new Image { Source = img, Width = size, Height = size };
-        return new TextBlock
+        var tb = new TextBlock
         {
             Text = glyph, FontSize = size, FontFamily = (FontFamily)Application.Current.Resources["GlyphFont"],
-            Foreground = (Brush)Application.Current.Resources["Text"], VerticalAlignment = VerticalAlignment.Center,
-            HorizontalAlignment = HorizontalAlignment.Center,
+            VerticalAlignment = VerticalAlignment.Center, HorizontalAlignment = HorizontalAlignment.Center,
         };
+        if (!inheritColor) tb.Foreground = (Brush)Application.Current.Resources["Text"];
+        return tb;
+    }
+
+    /// <summary>Activate a launcher window; falls back to forcing it forward when Windows' focus rules refuse (hook hotkeys).</summary>
+    public static void BringToFront(Window w)
+    {
+        if (!w.Activate()) Native.ForceForeground(Hwnd(w));
     }
 
     public static MenuItem Item(string header, Action action, bool enabled = true, bool isChecked = false, string keys = "")
@@ -140,7 +148,7 @@ public class Popover : Window
     {
         OnOpening();
         Show();
-        Activate();
+        UI.BringToFront(this);
     }
 
     protected virtual void OnOpening() { }

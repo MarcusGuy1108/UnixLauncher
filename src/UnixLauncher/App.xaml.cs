@@ -24,8 +24,17 @@ public partial class App : Application
 
     protected override void OnStartup(StartupEventArgs e)
     {
+        // "--open <folder>" comes from the folder handler (Settings › Windows Integration).
+        int at = Array.IndexOf(e.Args, "--open");
+        string? openFolder = at >= 0 && at + 1 < e.Args.Length ? e.Args[at + 1] : null;
+
         _single = new Mutex(true, "UnixLauncher.SingleInstance", out _primary);
-        if (!_primary) { Shutdown(); return; }
+        if (!_primary)
+        {
+            if (openFolder != null) SendToRunningCopy(openFolder);
+            Shutdown();
+            return;
+        }
 
         // A shell must not die on one bad handler: log and keep going.
         DispatcherUnhandledException += (_, ex) => { Log(ex.Exception); ex.Handled = true; };
@@ -59,9 +68,14 @@ public partial class App : Application
             if (ShellMode && !Settings.Current.DoNotDisturb) Banner.Show(n);
         };
 
+        ShortcutHook.Apply();
+        if (Settings.Current.ReplaceExplorer) Sys.OpensFoldersInFinder = true; // re-point the handler if the exe has moved
+        if (openFolder != null) FinderWindow.Open(openFolder);
+
         Settings.Changed += () =>
         {
             Resources["UiFont"] = new FontFamily(Settings.Current.FontFamily);
+            ShortcutHook.Apply();
             if (!ShellMode)
             {
                 if (Settings.Current.HideWindowsTaskbar) Sys.HideTaskbar(); else Sys.ShowTaskbar();
@@ -78,6 +92,24 @@ public partial class App : Application
     }
 
     public static void Quit() => Current.Shutdown();
+
+    public const string BarTitle = "UnixLauncher.MenuBar";
+
+    /// <summary>Hand a folder to the copy that's already running (its menu bar window receives WM_COPYDATA).</summary>
+    static void SendToRunningCopy(string folder)
+    {
+        IntPtr bar = Native.FindWindow(null, BarTitle);
+        if (bar == IntPtr.Zero) return;
+        Native.GetWindowThreadProcessId(bar, out uint pid);
+        Native.AllowSetForegroundWindow(pid); // we were just launched by the user, so we may pass focus on
+        IntPtr text = System.Runtime.InteropServices.Marshal.StringToHGlobalUni(folder);
+        try
+        {
+            var data = new Native.COPYDATASTRUCT { dwData = new IntPtr(1), cbData = (folder.Length + 1) * 2, lpData = text };
+            Native.SendCopyData(bar, Native.WM_COPYDATA, IntPtr.Zero, ref data);
+        }
+        finally { System.Runtime.InteropServices.Marshal.FreeHGlobal(text); }
+    }
 
     public static void Log(object? error)
     {

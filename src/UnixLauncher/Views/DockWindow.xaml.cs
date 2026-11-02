@@ -49,6 +49,7 @@ public partial class DockWindow : Window
     static bool Vertical => Edge is "Left" or "Right";
     static double IconSize => S.DockIconSize;
     static double Thickness => IconSize + Gap * 2 + Pad * 2 + DotRoom;
+    static double ShelfRadius => Math.Round(Thickness * 0.3); // macOS 26's generously rounded shelf
 
     public DockWindow()
     {
@@ -60,8 +61,7 @@ public partial class DockWindow : Window
             _glass = new Window { ShowInTaskbar = false, ShowActivated = false, Topmost = true, ResizeMode = ResizeMode.NoResize, Title = "Dock Backdrop" };
             Glass.Setup(_glass);
             _glass.SourceInitialized += (_, _) => Native.SetToolWindow(UI.Hwnd(_glass), true);
-            Glass.Style(ShelfBg);
-            ShelfBg.CornerRadius = new CornerRadius(8); // same radius DWM gives the backdrop window
+            ShelfBg.Background = new SolidColorBrush(Color.FromArgb(0x1A, 0xFF, 0xFF, 0xFF)); // light glass over the real blur
             ShelfBg.SizeChanged += (_, _) => SyncGlass();
         }
         SourceInitialized += (_, _) =>
@@ -113,6 +113,7 @@ public partial class DockWindow : Window
         Shelf.VerticalAlignment = Vertical ? VerticalAlignment.Center : VerticalAlignment.Bottom;
         Shelf.Margin = Edge switch { "Left" => new Thickness(EdgeMargin, 0, 0, 0), "Right" => new Thickness(0, 0, EdgeMargin, 0), _ => new Thickness(0, 0, 0, EdgeMargin) };
         // The shelf background keeps its size while magnified icons grow out of it, as on macOS.
+        ShelfBg.CornerRadius = new CornerRadius(ShelfRadius);
         ShelfBg.Width = Vertical ? Thickness : double.NaN;
         ShelfBg.Height = Vertical ? double.NaN : Thickness;
         ShelfBg.HorizontalAlignment = Vertical ? toEdge : HorizontalAlignment.Stretch;
@@ -145,8 +146,12 @@ public partial class DockWindow : Window
         if (!IsVisible || !_autoShown || ShelfBg.ActualWidth == 0) { _glass.Hide(); return; }
         var a = ShelfBg.PointToScreen(new Point(0, 0));
         var b = ShelfBg.PointToScreen(new Point(ShelfBg.ActualWidth, ShelfBg.ActualHeight));
+        int w = (int)Math.Round(b.X - a.X), h = (int)Math.Round(b.Y - a.Y), r = (int)Math.Round(ShelfRadius * 2 * UI.Scale(this));
         _glass.Show();
-        Native.SetWindowPos(UI.Hwnd(_glass), _hwnd, (int)a.X, (int)a.Y, (int)Math.Round(b.X - a.X), (int)Math.Round(b.Y - a.Y), Native.SWP_NOACTIVATE);
+        var glass = UI.Hwnd(_glass);
+        Native.SetWindowPos(glass, _hwnd, (int)a.X, (int)a.Y, w, h, Native.SWP_NOACTIVATE);
+        // DWM only rounds windows by 8px; clip the blur to the shelf's own radius (the shelf's rim hides the region's hard edge).
+        Native.SetWindowRgn(glass, Native.CreateRoundRectRgn(0, 0, w + 1, h + 1, r, r), true); // Windows owns the region afterwards
     }
 
     // ---------- Items ----------
@@ -373,7 +378,7 @@ public partial class DockWindow : Window
             UI.Item("Position on Screen: Bottom", () => Set(s => s.DockPosition = "Bottom"), isChecked: Edge == "Bottom"),
             UI.Item("Position on Screen: Right", () => Set(s => s.DockPosition = "Right"), isChecked: Edge == "Right"),
             null,
-            UI.Item("Dock Settings…", SettingsWindow.Open)));
+            UI.Item("Dock Settings…", () => SettingsWindow.Open("Desktop & Dock"))));
     }
 
     // ---------- Magnification ----------

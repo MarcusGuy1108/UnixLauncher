@@ -15,13 +15,25 @@ public partial class ControlCentre : Popover
     public ControlCentre()
     {
         InitializeComponent();
-        WifiTile.Tag = UI.Icon("wifi", "", 14);
-        BtTile.Tag = UI.Icon("bluetooth", "", 14);
-        FocusTile.Tag = UI.Icon("focus", "", 14);
-        DarkTile.Tag = UI.Icon("dark-mode", "◐", 14);
-        MirrorTile.Tag = UI.Icon("screen-mirroring", "\uE7F4", 14);
+        // Glyphs inherit their colour so a switched-on circle can turn them blue.
+        WifiTile.Tag = UI.Icon("wifi", "", 16, inheritColor: true);
+        BtTile.Tag = UI.Icon("bluetooth", "", 18, inheritColor: true);
+        ShareBtn.Tag = UI.Icon("nearby-sharing", "", 18, inheritColor: true);
+        FocusTile.Tag = UI.Icon("focus", "", 16, inheritColor: true);
+        TaskViewBtn.Tag = UI.Icon("task-view", "", 18, inheritColor: true);
+        MirrorBtn.Tag = UI.Icon("screen-mirroring", "", 18, inheritColor: true);
+        DarkTile.Tag = UI.Icon("dark-mode", "◐", 18, inheritColor: true);
+        CalcBtn.Tag = UI.Icon("calculator", "", 18, inheritColor: true);
+        TimerBtn.Tag = UI.Icon("timer", "", 18, inheritColor: true);
+        ShotBtn.Tag = UI.Icon("screenshot", "", 18, inheritColor: true);
+        OutputBtn.Tag = UI.Icon("sound-output", "", 12, inheritColor: true);
+        SunSmall.Content = UI.Icon("", "", 11);
+        SunBig.Content = UI.Icon("", "", 16);
+        SpeakerSmall.Content = UI.Icon("", "", 11);
+        SpeakerBig.Content = UI.Icon("", "", 16);
         PrevBtn.Content = UI.Icon("media-previous", "", 14);
         NextBtn.Content = UI.Icon("media-next", "", 14);
+        PlayBtn.Content = UI.Icon("media-play", "", 16);
 
         VolumeSlider.ValueChanged += (_, e) => { if (!_loading) Volume.Set((int)e.NewValue); };
         // WMI brightness calls are slow; apply once the slider settles, off the UI thread.
@@ -56,31 +68,36 @@ public partial class ControlCentre : Popover
         BrightnessSlider.Value = bright ?? 0;
         _loading = false;
 
-        ShowRadio(WifiTile, WifiSub, await Radios.IsOn(false));
-        ShowRadio(BtTile, BtSub, await Radios.IsOn(true));
+        ShowWifi(await Radios.IsOn(false));
+        ShowRadio(BtTile, await Radios.IsOn(true));
         await LoadMedia();
     }
 
-    static void ShowRadio(ToggleButton tile, System.Windows.Controls.TextBlock sub, bool? on)
+    static void ShowRadio(ToggleButton tile, bool? on)
     {
         tile.IsChecked = on == true;
         tile.IsEnabled = on != null;
-        sub.Text = on == null ? "Unavailable" : on.Value ? "On" : "Off";
+    }
+
+    void ShowWifi(bool? on)
+    {
+        ShowRadio(WifiTile, on);
+        WifiSub.Text = on == null ? "Unavailable" : on.Value ? Network.WifiName() ?? "Not Connected" : "Off"; // macOS shows the network name
     }
 
     async Task LoadMedia()
     {
         var np = await Media.Current();
-        MediaCard.Visibility = np == null ? Visibility.Collapsed : Visibility.Visible;
-        if (np == null) return;
-        MediaTitle.Text = np.Title;
-        MediaArtist.Text = np.Artist;
-        MediaArt.Source = np.Art;
-        PlayBtn.Content = UI.Icon(np.Playing ? "media-pause" : "media-play", np.Playing ? "" : "", 14);
+        MediaTitle.Text = np?.Title is { Length: > 0 } t ? t : "Not Playing";
+        MediaArtist.Text = np?.Artist ?? "";
+        MediaArt.Source = np?.Art;
+        bool playing = np?.Playing == true;
+        PlayBtn.Content = UI.Icon(playing ? "media-pause" : "media-play", playing ? "" : "", 16);
+        PrevBtn.IsEnabled = PlayBtn.IsEnabled = NextBtn.IsEnabled = np != null;
     }
 
-    async void Wifi_Click(object sender, RoutedEventArgs e) => ShowRadio(WifiTile, WifiSub, await Radios.Toggle(false));
-    async void Bluetooth_Click(object sender, RoutedEventArgs e) => ShowRadio(BtTile, BtSub, await Radios.Toggle(true));
+    async void Wifi_Click(object sender, RoutedEventArgs e) => ShowWifi(await Radios.Toggle(false));
+    async void Bluetooth_Click(object sender, RoutedEventArgs e) => ShowRadio(BtTile, await Radios.Toggle(true));
 
     void Focus_Click(object sender, RoutedEventArgs e)
     {
@@ -89,21 +106,27 @@ public partial class ControlCentre : Popover
         Settings.Save();
     }
 
-    void Dark_Click(object sender, RoutedEventArgs e)
+    void Dark_Click(object sender, RoutedEventArgs e) => Appearance.SetDark(DarkTile.IsChecked == true);
+
+    /// <summary>Close the panel, then do something that opens another window or Windows UI.</summary>
+    void Then(Action action)
     {
-        Appearance.SetDark(DarkTile.IsChecked == true);
+        Hide();
+        action();
     }
 
-    void Mirror_Click(object sender, RoutedEventArgs e)
-    {
-        MirrorTile.IsChecked = false; // an action, not a switch
-        Hide();
-        Native.PressKeys(0x5B, 0x4B); // Win+K opens Windows' Cast panel
-    }
+    void Share_Click(object sender, RoutedEventArgs e) => Then(() => Sys.Launch("ms-settings:crossdevice"));
+    void TaskView_Click(object sender, RoutedEventArgs e) => Then(() => Native.PressKeys(0x5B, 0x09));          // Win+Tab
+    void Mirror_Click(object sender, RoutedEventArgs e) => Then(() => Native.PressKeys(0x5B, 0x4B));            // Win+K: Cast
+    void Output_Click(object sender, RoutedEventArgs e) => Then(() => Sys.Launch("ms-settings:sound"));
+    void Calculator_Click(object sender, RoutedEventArgs e) => Then(() => Sys.Launch("calc.exe"));
+    void Timer_Click(object sender, RoutedEventArgs e) => Then(() => Sys.Launch("ms-clock:"));
+    void Screenshot_Click(object sender, RoutedEventArgs e) => Then(() => Native.PressKeys(0x5B, 0x10, 0x53));  // Win+Shift+S
+    void Edit_Click(object sender, RoutedEventArgs e) => Then(() => SettingsWindow.Open("Control Centre"));
 
     void OpenSettings(object sender, MouseButtonEventArgs e)
     {
-        if (sender is ButtonBase { CommandParameter: string uri }) { Hide(); Sys.Launch(uri); }
+        if (sender is ButtonBase { CommandParameter: string uri }) Then(() => Sys.Launch(uri));
     }
 
     async void Prev_Click(object sender, RoutedEventArgs e) { await Media.Previous(); await LoadMedia(); }

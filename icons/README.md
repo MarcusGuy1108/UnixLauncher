@@ -33,6 +33,13 @@ Segoe Fluent / MDL2 glyph.
 | `focus`              | Control Centre Focus tile + menu bar (when on)     | Moon glyph             |
 | `dark-mode`          | Control Centre Dark Mode tile                      | ◐                      |
 | `screen-mirroring`   | Control Centre Screen Mirroring tile               | Monitor glyph          |
+| `nearby-sharing`     | Control Centre Nearby sharing button               | Share glyph            |
+| `task-view`          | Control Centre Task View button                    | Task View glyph        |
+| `calculator`         | Control Centre Calculator button                   | Calculator glyph       |
+| `timer`              | Control Centre Timer button                        | Stopwatch glyph        |
+| `screenshot`         | Control Centre Screenshot button                   | Camera glyph           |
+| `sound`              | Menu bar volume item                               | Speaker glyph          |
+| `sound-output`       | Control Centre sound output button                 | Speakers glyph         |
 | `battery`            | Menu bar battery (laptops)                         | Battery level glyph    |
 | `battery-charging`   | Menu bar battery while charging                    | Charging glyph         |
 | `media-previous`     | Control Centre Now Playing                         | ⏮ glyph               |

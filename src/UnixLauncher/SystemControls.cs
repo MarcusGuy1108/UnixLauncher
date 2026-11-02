@@ -184,6 +184,19 @@ static class Media
     public static async Task Previous() { if (await Session() is { } s) await s.TrySkipPreviousAsync(); }
 }
 
+static class Network
+{
+    /// <summary>
+    /// Name of the connection in use (for Wi-Fi this is the network name), null when offline.
+    /// The profile name rather than the SSID API, which newer Windows gates behind location permission.
+    /// </summary>
+    public static string? WifiName()
+    {
+        try { return Windows.Networking.Connectivity.NetworkInformation.GetInternetConnectionProfile()?.ProfileName; }
+        catch { return null; }
+    }
+}
+
 static class Battery
 {
     /// <summary>(percent, charging), or null on desktops.</summary>

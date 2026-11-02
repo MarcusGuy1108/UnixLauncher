@@ -3,8 +3,8 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         WindowStyle="None" AllowsTransparency="True" Background="{StaticResource BarBg}"
         ShowInTaskbar="False" Topmost="True" ShowActivated="False" ResizeMode="NoResize"
-        FontFamily="{DynamicResource UiFont}" Height="26" Width="800" Title="Menu Bar">
-    <DockPanel LastChildFill="False" Margin="6,0">
+        FontFamily="{DynamicResource UiFont}" Height="26" Width="800" Title="UnixLauncher.MenuBar">
+    <DockPanel x:Name="BarContent" LastChildFill="False" Margin="6,0">
         <!-- Left: logo ("Apple") menu, then the active app's menu -->
         <Button x:Name="LogoBtn" Style="{StaticResource BarButton}" Click="Logo_Click" ToolTip="Menu" Padding="10,0">
             <!-- Fallback logo; replaced at runtime by icons/menu-logo.png if present -->
@@ -27,6 +27,9 @@
         <Button x:Name="SearchBtn" DockPanel.Dock="Right" Style="{StaticResource BarButton}" Click="Search_Click" ToolTip="Spotlight (Alt+Space)"/>
         <Button x:Name="WifiBtn" DockPanel.Dock="Right" Style="{StaticResource BarButton}" Click="ControlCentre_Click"/>
         <Button x:Name="BatteryBtn" DockPanel.Dock="Right" Style="{StaticResource BarButton}" Click="ControlCentre_Click" Visibility="Collapsed"/>
+        <Button x:Name="SoundBtn" DockPanel.Dock="Right" Style="{StaticResource BarButton}" Click="ControlCentre_Click" ToolTip="Sound" Visibility="Collapsed"/>
+        <Button x:Name="BtBtn" DockPanel.Dock="Right" Style="{StaticResource BarButton}" Click="ControlCentre_Click" ToolTip="Bluetooth" Visibility="Collapsed"/>
+        <Button x:Name="NowPlayingBtn" DockPanel.Dock="Right" Style="{StaticResource BarButton}" Click="ControlCentre_Click" Visibility="Collapsed"/>
         <Button x:Name="FocusBtn" DockPanel.Dock="Right" Style="{StaticResource BarButton}" Click="ControlCentre_Click" ToolTip="Focus is on" Visibility="Collapsed"/>
     </DockPanel>
 </Window>

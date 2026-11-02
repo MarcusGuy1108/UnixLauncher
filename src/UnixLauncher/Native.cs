@@ -116,6 +116,37 @@ static class Native
         return fi.szTypeName ?? "";
     }
 
+    // ---- Low-level keyboard hook (Windows-key shortcuts) ----
+    [StructLayout(LayoutKind.Sequential)]
+    public struct KBDLLHOOKSTRUCT { public uint vkCode, scanCode, flags, time; public IntPtr extra; }
+    public delegate IntPtr LowLevelProc(int code, IntPtr wParam, IntPtr lParam);
+    [DllImport("user32.dll", SetLastError = true)] public static extern IntPtr SetWindowsHookEx(int id, LowLevelProc proc, IntPtr module, uint thread);
+    [DllImport("user32.dll")] public static extern bool UnhookWindowsHookEx(IntPtr hook);
+    [DllImport("user32.dll")] public static extern IntPtr CallNextHookEx(IntPtr hook, int code, IntPtr w, IntPtr l);
+    [DllImport("kernel32.dll", CharSet = CharSet.Unicode)] public static extern IntPtr GetModuleHandle(string? name);
+
+    // ---- Foreground / inter-process ----
+    [DllImport("user32.dll")] public static extern bool AttachThreadInput(uint from, uint to, bool attach);
+    [DllImport("kernel32.dll")] public static extern uint GetCurrentThreadId();
+    [DllImport("user32.dll")] public static extern bool AllowSetForegroundWindow(uint pid);
+
+    /// <summary>Bring one of our windows to the front even when Windows' focus-stealing rules would refuse (e.g. after a hook hotkey).</summary>
+    public static void ForceForeground(IntPtr hwnd)
+    {
+        uint fgThread = GetWindowThreadProcessId(GetForegroundWindow(), out _), me = GetCurrentThreadId();
+        bool attached = fgThread != me && AttachThreadInput(me, fgThread, true);
+        SetForegroundWindow(hwnd);
+        if (attached) AttachThreadInput(me, fgThread, false);
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    public struct COPYDATASTRUCT { public IntPtr dwData; public int cbData; public IntPtr lpData; }
+    [DllImport("user32.dll", EntryPoint = "SendMessageW")] public static extern IntPtr SendCopyData(IntPtr h, int msg, IntPtr w, ref COPYDATASTRUCT data);
+    public const int WM_COPYDATA = 0x004A;
+
+    [DllImport("gdi32.dll")] public static extern IntPtr CreateRoundRectRgn(int x1, int y1, int x2, int y2, int w, int h);
+    [DllImport("user32.dll")] public static extern int SetWindowRgn(IntPtr h, IntPtr rgn, bool redraw);
+
     [DllImport("uxtheme.dll", EntryPoint = "#135")] static extern int SetPreferredAppMode(int mode);
     [DllImport("uxtheme.dll", EntryPoint = "#136")] static extern void FlushMenuThemes();
 
@@ -133,9 +164,9 @@ static class Native
     [StructLayout(LayoutKind.Sequential)]
     public struct WindowCompositionAttribData { public int Attribute; public IntPtr Data; public int SizeOfData; }
 
-    public static void EnableBlur(IntPtr hwnd)
+    public static void EnableBlur(IntPtr hwnd, bool on = true)
     {
-        var accent = new AccentPolicy { AccentState = 3 }; // ACCENT_ENABLE_BLURBEHIND
+        var accent = new AccentPolicy { AccentState = on ? 3 : 0 }; // ACCENT_ENABLE_BLURBEHIND / ACCENT_DISABLED
         int size = Marshal.SizeOf(accent);
         IntPtr p = Marshal.AllocHGlobal(size);
         try

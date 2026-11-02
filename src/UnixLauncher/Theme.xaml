@@ -25,11 +25,14 @@
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="Button">
-                    <Border x:Name="Bd" Background="Transparent" CornerRadius="4" Padding="{TemplateBinding Padding}" Margin="1,2">
+                    <Border x:Name="Bd" Background="Transparent" CornerRadius="7" Padding="{TemplateBinding Padding}" Margin="1,2">
                         <ContentPresenter VerticalAlignment="Center"/>
                     </Border>
                     <ControlTemplate.Triggers>
                         <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Bd" Property="Background" Value="{StaticResource HoverBg}"/>
+                        </Trigger>
+                        <Trigger Property="Tag" Value="on">
                             <Setter TargetName="Bd" Property="Background" Value="{StaticResource HoverBg}"/>
                         </Trigger>
                     </ControlTemplate.Triggers>
@@ -53,7 +56,7 @@
             <Setter.Value>
                 <ControlTemplate TargetType="ContextMenu">
                     <Border Background="{StaticResource PanelBg}" BorderBrush="{StaticResource Line}" BorderThickness="1"
-                            CornerRadius="8" Padding="5" MinWidth="200">
+                            CornerRadius="12" Padding="6" MinWidth="200">
                         <ItemsPresenter/>
                     </Border>
                 </ControlTemplate>
@@ -66,7 +69,7 @@
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="MenuItem">
-                    <Border x:Name="Bd" Background="Transparent" CornerRadius="4" Padding="6,3,14,3">
+                    <Border x:Name="Bd" Background="Transparent" CornerRadius="6" Padding="6,4,14,4">
                         <DockPanel>
                             <TextBlock x:Name="Check" Text="✓" Width="16" DockPanel.Dock="Left" Visibility="Hidden"/>
                             <TextBlock Text="{TemplateBinding InputGestureText}" DockPanel.Dock="Right" Margin="20,0,0,0" Foreground="{StaticResource SubText}"/>
@@ -178,25 +181,75 @@
         </Setter>
     </Style>
 
-    <!-- Control Centre toggle tile -->
-    <Style x:Key="Tile" TargetType="ToggleButton">
+    <!-- Content area of Finder and Settings (the sidebar shows the window's glass instead) -->
+    <SolidColorBrush x:Key="ContentBg" Color="#1E1E1E"/>
+
+    <!-- Sidebar row in Finder and Settings (Background = selection highlight) -->
+    <Style x:Key="SidebarItem" TargetType="Button">
         <Setter Property="Foreground" Value="{StaticResource Text}"/>
-        <Setter Property="Background" Value="{StaticResource CardBg}"/>
+        <Setter Property="Background" Value="Transparent"/>
+        <Setter Property="Focusable" Value="False"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Border Background="{TemplateBinding Background}" CornerRadius="6" Padding="8,4" Margin="0,1">
+                        <ContentPresenter/>
+                    </Border>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- macOS 26 Control Centre: round glass button. Tag = glyph; when on it turns white with a blue glyph. -->
+    <Style x:Key="CcCircle" TargetType="ButtonBase">
+        <Setter Property="Width" Value="56"/>
+        <Setter Property="Height" Value="56"/>
+        <Setter Property="Focusable" Value="False"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="ButtonBase">
+                    <Border x:Name="Bg" CornerRadius="28" Background="{StaticResource CardBg}">
+                        <ContentPresenter x:Name="Glyph" Content="{TemplateBinding Tag}" TextElement.Foreground="White"
+                                          HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="ToggleButton.IsChecked" Value="True">
+                            <Setter TargetName="Bg" Property="Background" Value="White"/>
+                            <Setter TargetName="Glyph" Property="TextElement.Foreground" Value="{StaticResource Accent}"/>
+                        </Trigger>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter Property="Opacity" Value="0.85"/>
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter Property="Opacity" Value="0.4"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- macOS 26 Control Centre: wide pill with a round icon, a title and a subtitle (Wi-Fi, Focus) -->
+    <Style x:Key="CcPill" TargetType="ToggleButton">
+        <Setter Property="Height" Value="56"/>
+        <Setter Property="Foreground" Value="{StaticResource Text}"/>
         <Setter Property="Focusable" Value="False"/>
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="ToggleButton">
-                    <Border Background="{TemplateBinding Background}" CornerRadius="12" Padding="10,8">
+                    <Border CornerRadius="28" Background="{StaticResource CardBg}" Padding="10,0">
                         <DockPanel>
-                            <Border x:Name="Dot" Width="28" Height="28" CornerRadius="14" Background="#40FFFFFF" DockPanel.Dock="Left" Margin="0,0,10,0">
-                                <ContentPresenter Content="{TemplateBinding Tag}" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                            <Border x:Name="Dot" Width="36" Height="36" CornerRadius="18" Background="#40FFFFFF" DockPanel.Dock="Left" Margin="0,0,10,0">
+                                <ContentPresenter x:Name="Glyph" Content="{TemplateBinding Tag}" TextElement.Foreground="White"
+                                                  HorizontalAlignment="Center" VerticalAlignment="Center"/>
                             </Border>
                             <ContentPresenter VerticalAlignment="Center"/>
                         </DockPanel>
                     </Border>
                     <ControlTemplate.Triggers>
                         <Trigger Property="IsChecked" Value="True">
-                            <Setter TargetName="Dot" Property="Background" Value="{StaticResource Accent}"/>
+                            <Setter TargetName="Dot" Property="Background" Value="White"/>
+                            <Setter TargetName="Glyph" Property="TextElement.Foreground" Value="{StaticResource Accent}"/>
                         </Trigger>
                     </ControlTemplate.Triggers>
                 </ControlTemplate>
@@ -204,47 +257,25 @@
         </Setter>
     </Style>
 
-    <!-- Small square Control Centre tile: icon above a short label -->
-    <Style x:Key="SmallTile" TargetType="ToggleButton">
-        <Setter Property="Foreground" Value="{StaticResource Text}"/>
-        <Setter Property="Focusable" Value="False"/>
-        <Setter Property="Template">
-            <Setter.Value>
-                <ControlTemplate TargetType="ToggleButton">
-                    <Border Background="{StaticResource CardBg}" CornerRadius="12" Padding="4,8">
-                        <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
-                            <Border x:Name="Dot" Width="28" Height="28" CornerRadius="14" Background="#40FFFFFF" Margin="0,0,0,4">
-                                <ContentPresenter Content="{TemplateBinding Tag}" HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                            </Border>
-                            <ContentPresenter HorizontalAlignment="Center"/>
-                        </StackPanel>
-                    </Border>
-                    <ControlTemplate.Triggers>
-                        <Trigger Property="IsChecked" Value="True">
-                            <Setter TargetName="Dot" Property="Background" Value="{StaticResource Accent}"/>
-                        </Trigger>
-                    </ControlTemplate.Triggers>
-                </ControlTemplate>
-            </Setter.Value>
-        </Setter>
-    </Style>
-
-    <!-- Thick white macOS slider; Tag = glyph drawn inside the track (sun, speaker) -->
+    <!-- Thin macOS slider: white fill, round white knob -->
     <Style x:Key="MacSlider" TargetType="Slider">
         <Setter Property="Minimum" Value="0"/>
         <Setter Property="Maximum" Value="100"/>
         <Setter Property="IsMoveToPointEnabled" Value="True"/>
         <Setter Property="Focusable" Value="False"/>
+        <Setter Property="Height" Value="20"/>
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="Slider">
                     <Grid>
-                    <Border Height="22" CornerRadius="11" Background="#33FFFFFF" ClipToBounds="True">
+                        <Border Height="4" CornerRadius="2" Background="#40FFFFFF" VerticalAlignment="Center"/>
                         <Track x:Name="PART_Track">
                             <Track.DecreaseRepeatButton>
                                 <RepeatButton Command="Slider.DecreaseLarge">
                                     <RepeatButton.Template>
-                                        <ControlTemplate TargetType="RepeatButton"><Border Background="#E6FFFFFF" CornerRadius="11,0,0,11"/></ControlTemplate>
+                                        <ControlTemplate TargetType="RepeatButton">
+                                            <Grid Background="Transparent"><Border Height="4" CornerRadius="2" Background="White" VerticalAlignment="Center"/></Grid>
+                                        </ControlTemplate>
                                     </RepeatButton.Template>
                                 </RepeatButton>
                             </Track.DecreaseRepeatButton>
@@ -256,17 +287,38 @@
                                 </RepeatButton>
                             </Track.IncreaseRepeatButton>
                             <Track.Thumb>
-                                <Thumb Width="22">
+                                <Thumb Width="18" Height="18">
                                     <Thumb.Template>
                                         <ControlTemplate TargetType="Thumb"><Ellipse Fill="White" Stroke="#33000000"/></ControlTemplate>
                                     </Thumb.Template>
                                 </Thumb>
                             </Track.Thumb>
                         </Track>
-                    </Border>
-                    <TextBlock Text="{TemplateBinding Tag}" FontFamily="{StaticResource GlyphFont}" FontSize="11" Foreground="#8C000000"
-                               Margin="7,0,0,0" HorizontalAlignment="Left" VerticalAlignment="Center" IsHitTestVisible="False"/>
                     </Grid>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- macOS toggle switch (use on a CheckBox) -->
+    <Style x:Key="Switch" TargetType="CheckBox">
+        <Setter Property="Focusable" Value="False"/>
+        <Setter Property="Cursor" Value="Hand"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="CheckBox">
+                    <Border x:Name="Track" Width="38" Height="22" CornerRadius="11" Background="#4DFFFFFF">
+                        <Ellipse x:Name="Knob" Width="18" Height="18" Fill="White" HorizontalAlignment="Left" Margin="2,0"/>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsChecked" Value="True">
+                            <Setter TargetName="Track" Property="Background" Value="{StaticResource Accent}"/>
+                            <Setter TargetName="Knob" Property="HorizontalAlignment" Value="Right"/>
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter Property="Opacity" Value="0.4"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
                 </ControlTemplate>
             </Setter.Value>
         </Setter>

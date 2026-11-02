@@ -76,7 +76,7 @@ public partial class FinderWindow : MacWindow
     {
         var w = new FinderWindow(folder ?? Home);
         w.Show();
-        w.Activate();
+        UI.BringToFront(w);
         return w;
     }
 

@@ -16,11 +16,38 @@ Built with C# / WPF on .NET 10.
 | **Dock** | Pinned apps, folders and files, plus a dot under running apps. Running apps that aren't pinned get their own section, and the Recycle Bin sits at the end. **Left / Bottom / Right**, icon size, magnification and auto-hide. Drag icons to reorder them. Drop `.exe`, `.lnk` or folders from Explorer onto it to pin them. Clicking a running app brings it forward, as on macOS. Clicking a folder (e.g. Downloads) opens a **stack** of its newest items. Right-click an icon for its windows, Keep / Remove, Show in File Explorer, Hide, Quit and Force Quit. Right-click the shelf for dock options. |
 | **Finder** | A macOS-style file browser, first in the dock. Sidebar (Favourites, drives, Recycle Bin), back / forward, **Icons** and **List** views (sortable Name / Date Modified / Size / Kind columns), search in the current folder and below, path bar and status bar. **Space** for Quick Look (pictures, text, or a summary card). New Folder, Rename, Move to Recycle Bin, Get Info (Windows Properties), Open With, copy / cut / paste (works with Explorer's clipboard), drag and drop in, out and onto sidebar places. Copies and moves use Windows' own progress and "replace or skip" dialogs. Its menus show in the menu bar when it's in front, and also when the desktop is, as on macOS. Shortcuts: Ctrl+N new window, Ctrl+Shift+N new folder, F2 rename, Delete, Alt+Enter Get Info, Alt+←/→/↑ back / forward / enclosing folder, Ctrl+1/2 views, Ctrl+F search. |
 | **Window buttons** | The launcher's own windows have real traffic lights. A small overlay also adds working close / minimise / zoom dots to the title bar of whichever app is focused. Nothing is injected into other apps, and their own buttons stay put. |
-| **Control Centre** | macOS layout: Wi-Fi and Bluetooth card, Focus, Dark Mode and Screen Mirroring (Windows Cast) tiles, display brightness (laptops), volume, and Now Playing (any app using Windows media controls). Right-click a tile to open its Windows settings page. |
+| **Control Centre** | macOS 26 layout of glass pills and circles: Wi-Fi (with the network name), Bluetooth, Nearby sharing, Now Playing, Focus, Task View, Screen Mirroring (Cast), display brightness (laptops), volume with sound output, and Dark Mode / Calculator / Timer / Screenshot buttons. **Edit Controls** opens its settings. Right-click a toggle to open its Windows settings page. |
 | **Notification Centre** | Mirrors every app's Windows notifications, with dismiss and Clear All, plus a calendar widget. |
 | **Spotlight** | **Alt+Space**. Search apps, do quick maths (`12*7`), search files, search the web. |
 | **Launchpad** | Full-screen grid of every installed app (desktop and Store), with search. Right-click › Add to Dock. |
 | **Full-screen apps** | The menu bar and dock hide while a full-screen app or game is in front. |
+
+## Settings
+
+The Settings window (logo menu › Launcher Settings…) is laid out like macOS System Settings:
+
+- **General:** start at sign-in, and where settings and logs live.
+- **Appearance:** menu bar background on or off (off gives the clear macOS 26 bar), font, and custom icons.
+- **Control Centre:** for Wi-Fi, Bluetooth, Focus, Sound, Now Playing, Battery and Spotlight, choose
+  *Show in Menu Bar*, *Show When Active* or *Don't Show in Menu Bar*.
+- **Desktop & Dock:** dock size, magnification, position and auto-hide, plus the traffic-light overlay.
+- **Windows Integration:** replace parts of Windows (below), hide the taskbar, and shell mode.
+
+## Replacing Windows features
+
+All off by default, and each can be switched back at any time, under **Settings › Windows Integration**:
+
+| Option | What changes |
+|---|---|
+| **Open folders in Finder** | Folders opened anywhere (desktop, Explorer, "Open folder" in other apps, drives) and **Win+E** open in Finder. It adds a per-user "open" action to folders and drives in the registry, the way other Explorer replacements do; switching it off removes only that action. |
+| **Windows key opens Launchpad** | A tap of the Windows key opens Launchpad instead of Start. Win + other keys (Win+D, Win+L, Win+Shift+S…) keep working. |
+| **Win+S opens Spotlight** | Win+S and Win+Q open Spotlight instead of Windows Search. |
+| **Win+A opens Control Centre** | Instead of Windows' Quick Settings. |
+| **Win+N opens Notification Centre** | Instead of Windows' notification panel. |
+
+The keyboard options use a low-level keyboard hook. It only reacts to those Windows-key combinations, and
+it injects an unused key code so the Start menu doesn't also pop up. If you move `UnixLauncher.exe`, the
+folder option repairs its registry entry the next time the launcher starts.
 
 ## Requirements
 
@@ -106,8 +133,9 @@ knowing:
 - Mirrored app menus only work for apps with a classic Windows menu bar (e.g. Notepad++, Registry
   Editor, older tools). Browsers, Store apps, Electron apps and Office draw their own, so they just
   get the Window menu. Those menus use Windows' own (dark) menu style.
-- Finder doesn't replace Explorer system-wide: other apps (and Win+E) still open folders in File Explorer.
-  It has no column or gallery view, no tabs, and no tags. Its search walks the disk (up to 1000 results)
+- Finder takes over folders only with *Open folders in Finder* switched on. Apps that start `explorer.exe`
+  directly, and special places such as This PC or Control Panel, still open File Explorer.
+  Finder has no column or gallery view, no tabs, and no tags. Its search walks the disk (up to 1000 results)
   rather than using the Windows Search index. "Show in File Explorer" in its right-click menu reaches
   everything else Windows offers (Send to, Compress, etc.).
 - The launcher UI is dark-only.

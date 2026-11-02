@@ -2,7 +2,11 @@ using System;
 using System.Diagnostics;
 using System.Linq;
 using System.Net.NetworkInformation;
+using System.Runtime.InteropServices;
 using System.Text;
+using System.Threading.Tasks;
+using System.Windows.Media;
+using System.Windows.Media.Effects;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Interop;
@@ -27,7 +31,7 @@ public partial class MenuBar : Window
         {
             _hwnd = UI.Hwnd(this);
             Native.SetToolWindow(_hwnd, true);
-            Native.EnableBlur(_hwnd);
+            ApplyBackground();
             HwndSource.FromHwnd(_hwnd)!.AddHook(WndProc);
             // shortcut: hotkey fixed to Alt+Space; make it a setting if people use PowerToys Run.
             if (!Native.RegisterHotKey(_hwnd, HotkeySpotlight, 0x1 | 0x4000, 0x20)) // MOD_ALT | MOD_NOREPEAT, VK_SPACE
@@ -40,7 +44,15 @@ public partial class MenuBar : Window
         SearchBtn.Content = UI.Icon("search", "", 13);
         CcBtn.Content = UI.Icon("control-centre", "", 13);
         WifiBtn.Content = UI.Icon("wifi", "", 13);
-        FocusBtn.Content = UI.Icon("focus", "", 13);
+        FocusBtn.Content = UI.Icon("focus", "\uE708", 13);
+        BtBtn.Content = UI.Icon("bluetooth", "\uE702", 13);
+        Settings.Changed += () => { ApplyBackground(); Refresh(force: true); };
+        Loaded += (_, _) => // macOS keeps a menu-bar item highlighted while its panel is open
+        {
+            Highlight(App.ControlCentre, CcBtn);
+            Highlight(App.NotificationCentre, ClockBtn);
+            Highlight(App.Spotlight, SearchBtn);
+        };
 
         var clock = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
         clock.Tick += (_, _) => Refresh();
@@ -60,6 +72,14 @@ public partial class MenuBar : Window
 
     IntPtr WndProc(IntPtr hwnd, int msg, IntPtr w, IntPtr l, ref bool handled)
     {
+        if (msg == Native.WM_COPYDATA) // a folder handed over by a second launch (Finder as folder handler)
+        {
+            var data = Marshal.PtrToStructure<Native.COPYDATASTRUCT>(l);
+            if (data.dwData == new IntPtr(1) && Marshal.PtrToStringUni(data.lpData) is { Length: > 0 } folder)
+                Dispatcher.BeginInvoke(() => FinderWindow.Open(folder)); // let the sender's SendMessage return first
+            handled = true;
+            return new IntPtr(1);
+        }
         if (msg == Native.WM_HOTKEY && w.ToInt32() == HotkeySpotlight) App.Spotlight.Toggle();
         if ((uint)msg == TaskbarCreated) // Explorer restarted: it forgot our reserved space and re-showed its taskbar
         {
@@ -76,18 +96,47 @@ public partial class MenuBar : Window
         return IntPtr.Zero;
     }
 
-    void Refresh()
+    static void Highlight(Window panel, Button item) => panel.IsVisibleChanged += (_, _) => item.Tag = panel.IsVisible ? "on" : null;
+
+    void ApplyBackground()
+    {
+        bool bg = Settings.Current.MenuBarBackground;
+        // "Transparent" is alpha 1, not 0: fully transparent pixels would pass clicks through to the window below.
+        Background = bg ? (Brush)FindResource("BarBg") : new SolidColorBrush(Color.FromArgb(1, 0, 0, 0));
+        BarContent.Effect = bg ? null : new DropShadowEffect { BlurRadius = 6, ShadowDepth = 0, Opacity = 0.7 }; // readable on bright wallpaper
+        if (_hwnd != IntPtr.Zero) Native.EnableBlur(_hwnd, bg);
+    }
+
+    static Visibility Vis(bool show) => show ? Visibility.Visible : Visibility.Collapsed;
+
+    /// <summary>Is a Control Centre module in the menu bar right now (Settings › Control Centre)?</summary>
+    static bool Shown(string module, bool active = true) => Settings.Current.MenuBarMode(module) switch
+    {
+        Settings.Show => true,
+        Settings.WhenActive => active,
+        _ => false,
+    };
+
+    void Refresh(bool force = false)
     {
         var now = DateTime.Now;
         ClockBtn.Content = $"{now:ddd d MMM}  {now:t}";
-        if (_tick++ % 10 != 0) return; // status icons every 10 s
+        if (_tick++ % 10 != 0 && !force) return; // status icons every 10 s
 
         bool online = NetworkInterface.GetIsNetworkAvailable();
         WifiBtn.Opacity = online ? 1 : 0.4;
-        WifiBtn.ToolTip = online ? "Connected" : "Not connected";
-        FocusBtn.Visibility = Settings.Current.DoNotDisturb ? Visibility.Visible : Visibility.Collapsed;
+        WifiBtn.ToolTip = Network.WifiName() ?? (online ? "Connected" : "Not connected");
+        WifiBtn.Visibility = Vis(Shown("Wi-Fi"));
+        FocusBtn.Visibility = Vis(Shown("Focus", Settings.Current.DoNotDisturb));
+        SearchBtn.Visibility = Vis(Shown("Spotlight"));
 
-        if (Battery.Get() is { } b)
+        var vol = Volume.Get();
+        SoundBtn.Visibility = Vis(vol != null && Shown("Sound"));
+        if (vol != null) SoundBtn.Content = UI.Icon("sound", vol == 0 ? "\uE74F" : "\uE767", 13); // Mute / Volume
+
+        BatteryBtn.Visibility = Visibility.Collapsed;
+        _ = RefreshAsync();
+        if (Shown("Battery") && Battery.Get() is { } b)
         {
             int level = Math.Clamp(b.percent / 10, 0, 10);
             var glyph = ((char)((b.charging ? 0xEBAB : 0xEBA0) + level)).ToString(); // Battery0..10 / BatteryCharging0..10
@@ -97,6 +146,20 @@ public partial class MenuBar : Window
             BatteryBtn.Content = panel;
             BatteryBtn.Visibility = Visibility.Visible;
         }
+    }
+
+    /// <summary>Bluetooth and Now Playing state come from async Windows APIs.</summary>
+    async Task RefreshAsync()
+    {
+        bool? bt = Shown("Bluetooth") ? await Radios.IsOn(true) : null;
+        BtBtn.Visibility = Vis(bt != null);
+        BtBtn.Opacity = bt == true ? 1 : 0.4;
+
+        var np = Shown("Now Playing") ? await Media.Current() : null;
+        NowPlayingBtn.Visibility = Vis(np != null);
+        if (np == null) return;
+        NowPlayingBtn.Content = UI.Icon(np.Playing ? "media-play" : "media-pause", np.Playing ? "\uE768" : "\uE769", 13);
+        NowPlayingBtn.ToolTip = string.IsNullOrEmpty(np.Artist) ? np.Title : $"{np.Title} — {np.Artist}";
     }
 
     void OnForeground(IntPtr fg)
@@ -110,12 +173,15 @@ public partial class MenuBar : Window
         if (RunningApps.IsOwn(fg))
         {
             // Finder windows get Finder's menus; other launcher windows (Settings, Quick Look…) leave the bar as it was.
-            if (HwndSource.FromHwnd(fg)?.RootVisual is FinderWindow fw) ShowFinder(fw, fg);
+            var own = HwndSource.FromHwnd(fg)?.RootVisual;
+            if (own is FinderWindow fw) ShowFinder(fw, fg);
+            else if (own is SettingsWindow sw) ShowOwnApp(sw, "Launcher Settings");
             return;
         }
         if (Native.IsShellWindow(fg)) { ShowFinder(null, IntPtr.Zero); return; } // on macOS the desktop belongs to Finder
-        if (fg == _target && !_finder) return;
+        if (fg == _target && !_finder && _ownApp == null) return;
         _finder = false;
+        _ownApp = null;
         _target = fg;
         _targetInfo = RunningApps.Describe(fg);
         AppBtn.Content = RunningApps.DisplayName(_targetInfo);
@@ -123,11 +189,30 @@ public partial class MenuBar : Window
     }
 
     bool _finder; // the bar is showing Finder (a Finder window or the desktop is in front)
+    Window? _ownApp; // the bar is showing one of the launcher's own windows (Settings)
+
+    void ShowOwnApp(Window w, string name)
+    {
+        _finder = false;
+        _ownApp = w;
+        _target = UI.Hwnd(w);
+        _targetInfo = null;
+        AppBtn.Content = name;
+        AppMenus.Children.Clear();
+        var window = new Button { Style = (Style)FindResource("BarButton"), Content = "Window" };
+        window.Click += (_, _) => UI.ShowMenu(UI.Menu(
+            UI.Item("Minimise", () => w.WindowState = WindowState.Minimized),
+            UI.Item("Zoom", () => (w as MacWindow)?.Zoom()),
+            null,
+            UI.Item("Close Window", w.Close, keys: "Ctrl+W")), window);
+        AppMenus.Children.Add(window);
+    }
 
     void ShowFinder(FinderWindow? fw, IntPtr hwnd)
     {
         if (_finder && hwnd == _target && hwnd != IntPtr.Zero) return;
         _finder = true;
+        _ownApp = null;
         _target = hwnd;
         _targetInfo = null;
         AppBtn.Content = "Finder";
@@ -256,6 +341,14 @@ public partial class MenuBar : Window
     // ---------- Active app menu ----------
     void App_Click(object sender, RoutedEventArgs e)
     {
+        if (_ownApp != null)
+        {
+            UI.ShowMenu(UI.Menu(
+                UI.Item("About UnixLauncher", () => new AboutWindow().Show()),
+                null,
+                UI.Item(App.ShellMode ? "Quit Launcher and Start Explorer" : "Quit Launcher", QuitLauncher)), AppBtn);
+            return;
+        }
         if (_finder || _target == IntPtr.Zero || !Native.IsWindow(_target) || _targetInfo is not { } info)
         {
             UI.ShowMenu(UI.Menu(

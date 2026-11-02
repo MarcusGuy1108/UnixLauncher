@@ -29,6 +29,36 @@ public class Settings
     public bool DoNotDisturb { get; set; }
     /// <summary>Finder's view: "Icons" or "List".</summary>
     public string FinderView { get; set; } = "Icons";
+
+    // Windows Integration: each one takes over a built-in Windows feature. All off by default.
+    public bool ReplaceExplorer { get; set; }       // folders + Win+E open Finder
+    public bool ReplaceStart { get; set; }          // Windows key opens Launchpad
+    public bool ReplaceSearch { get; set; }         // Win+S / Win+Q open Spotlight
+    public bool ReplaceQuickSettings { get; set; }  // Win+A opens Control Centre
+    public bool ReplaceNotifications { get; set; }  // Win+N opens Notification Centre
+
+    /// <summary>macOS 26 "Show menu bar background"; off = fully transparent bar.</summary>
+    public bool MenuBarBackground { get; set; } = true;
+
+    /// <summary>Control Centre module → "Show in Menu Bar" | "Show When Active" | "Don't Show in Menu Bar".</summary>
+    public Dictionary<string, string> MenuBarItems { get; set; } = new();
+
+    public const string Show = "Show in Menu Bar", WhenActive = "Show When Active", Hide = "Don't Show in Menu Bar";
+
+    /// <summary>Modules that can appear in the menu bar, the choices each offers, and the default.</summary>
+    public static readonly (string Name, string[] Modes, string Default)[] MenuBarModules =
+    {
+        ("Wi-Fi", new[] { Show, Hide }, Show),
+        ("Bluetooth", new[] { Show, Hide }, Hide),
+        ("Focus", new[] { WhenActive, Hide }, WhenActive),
+        ("Sound", new[] { Show, Hide }, Hide),
+        ("Now Playing", new[] { WhenActive, Hide }, WhenActive),
+        ("Battery", new[] { Show, Hide }, Show),
+        ("Spotlight", new[] { Show, Hide }, Show),
+    };
+
+    public string MenuBarMode(string module) =>
+        MenuBarItems.TryGetValue(module, out var m) ? m : Array.Find(MenuBarModules, x => x.Name == module).Default ?? Hide;
     /// <summary>San Francisco can't be shipped; drop in any installed font family here.</summary>
     public string FontFamily { get; set; } = "Segoe UI Variable Text, Segoe UI";
     public List<DockPin> Pinned { get; set; } = new()

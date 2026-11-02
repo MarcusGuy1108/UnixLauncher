@@ -4,7 +4,6 @@
         xmlns:local="clr-namespace:UnixLauncher.Views"
         Title="Finder" Width="1000" Height="640" MinWidth="560" MinHeight="360" ResizeMode="CanResize">
     <local:MacWindow.Resources>
-        <SolidColorBrush x:Key="FinderBg" Color="#1E1E1E"/>
 
         <ItemsPanelTemplate x:Key="IconPanel"><WrapPanel Margin="8"/></ItemsPanelTemplate>
         <ItemsPanelTemplate x:Key="ListPanel"><VirtualizingStackPanel/></ItemsPanelTemplate>
@@ -86,20 +85,6 @@
             <Setter Property="HorizontalContentAlignment" Value="Left"/>
         </Style>
 
-        <Style x:Key="SidebarItem" TargetType="Button">
-            <Setter Property="Foreground" Value="{StaticResource Text}"/>
-            <Setter Property="Background" Value="Transparent"/>
-            <Setter Property="Focusable" Value="False"/>
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="Button">
-                        <Border Background="{TemplateBinding Background}" CornerRadius="6" Padding="8,4" Margin="0,1">
-                            <ContentPresenter/>
-                        </Border>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
 
         <Style x:Key="ViewToggle" TargetType="ToggleButton">
             <Setter Property="Foreground" Value="{StaticResource Text}"/>
@@ -134,7 +119,7 @@
             </ScrollViewer>
         </Border>
 
-        <DockPanel Grid.Column="1" Background="{StaticResource FinderBg}">
+        <DockPanel Grid.Column="1" Background="{StaticResource ContentBg}">
             <!-- Unified toolbar: drag the window from any empty part of it -->
             <Grid DockPanel.Dock="Top" Height="52" Background="Transparent" MouseLeftButtonDown="DragArea_MouseDown">
                 <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="8,0,0,0">
