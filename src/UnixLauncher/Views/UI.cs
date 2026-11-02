@@ -82,8 +82,6 @@ static class UI
 {
     public static IntPtr Hwnd(Window w) => new WindowInteropHelper(w).EnsureHandle();
 
-    /// <summary>Acrylic tint of menus and floating glass: a light dark-grey (0xAABBGGRR), so the wallpaper's colour comes through.</summary>
-    public const int GlassAcrylic = 0x30202022;
 
     /// <summary>Marks an element as one floating glass shape (see <see cref="FloatingGlass"/>), with this corner radius.</summary>
     public static readonly DependencyProperty GlassRadiusProperty =
@@ -92,38 +90,50 @@ static class UI
     public static void SetGlassRadius(DependencyObject d, double v) => d.SetValue(GlassRadiusProperty, v);
 
     /// <summary>
-    /// macOS 27 panels made of separate pieces of glass (Control Centre's tiles, Spotlight's field and results): blur the
-    /// desktop only behind the elements marked with UI.GlassRadius, by clipping the window to their rounded shapes.
-    /// The window must be layered (no system backdrop: that ignores the clip). Gaps between pieces let clicks through.
+    /// macOS 27 panels made of separate pieces of glass (Control Centre's tiles, Spotlight's field and results): behind the
+    /// content sits a blurred copy of the screen (<see cref="Backdrop"/>), clipped to the elements marked with UI.GlassRadius,
+    /// so each piece has exact rounded corners and the gaps between them stay clear and click through.
     /// </summary>
     public static void FloatingGlass(Window w)
     {
+        var content = (UIElement)w.Content;
+        var picture = new Image { Stretch = Stretch.Fill };
+        var layer = new Canvas { IsHitTestVisible = false, Children = { picture } };
+        w.Content = null;
+        w.Content = new Grid { Children = { layer, content } };
+
+        w.IsVisibleChanged += (_, e) =>
+        {
+            if (!(bool)e.NewValue) return;
+            // The whole screen under the panel: it can grow after opening (Spotlight's results).
+            IntPtr h = Hwnd(w);
+            var mi = new Native.MONITORINFO { cbSize = System.Runtime.InteropServices.Marshal.SizeOf<Native.MONITORINFO>() };
+            if (!Native.GetMonitorInfo(Native.MonitorFromWindow(h, 2), ref mi) || !Native.GetWindowRect(h, out var wr)) return;
+            var mon = mi.rcMonitor;
+            double s = Scale(w);
+            picture.Source = Backdrop.Capture(mon, Color.FromRgb(0x1E, 0x1E, 0x20), 0.15);
+            picture.Width = (mon.Right - mon.Left) / s;
+            picture.Height = (mon.Bottom - mon.Top) / s;
+            Canvas.SetLeft(picture, (mon.Left - wr.Left) / s);
+            Canvas.SetTop(picture, (mon.Top - wr.Top) / s);
+        };
+
         string last = "";
-        w.SourceInitialized += (_, _) => Native.EnableBlur(Hwnd(w), acrylicTint: GlassAcrylic);
         w.LayoutUpdated += (_, _) =>
         {
-            if (w.Content is not Visual root) return; // also while hidden, so the clip is right before the first frame
-            double s = Scale(w);
-            var shapes = new List<(int l, int t, int r, int b, int rad)>();
-            CollectShapes(root, root, s, new Rect(-1e6, -1e6, 2e6, 2e6), shapes);
-            if (shapes.Count == 0) return;
+            if (w.Content is not Grid root) return;
+            var shapes = new List<(Rect r, double rad)>();
+            CollectShapes(root, content, new Rect(-1e6, -1e6, 2e6, 2e6), shapes);
             string sig = string.Join(";", shapes);
             if (sig == last) return; // layout passes run all the time: only re-clip when a shape moved
             last = sig;
-            IntPtr rgn = Native.CreateRectRgn(0, 0, 0, 0);
-            foreach (var (l, t, r, b, rad) in shapes)
-            {
-                // 1px inside the drawn outline: GDI's rounded region is jagged and a touch larger than WPF's smooth edge,
-                // so blur would poke out at the corners. The rim drawn on that last pixel hides the seam.
-                IntPtr one = Native.CreateRoundRectRgn(l + 1, t + 1, r, b, rad * 2, rad * 2);
-                Native.CombineRgn(rgn, rgn, one, 2); // RGN_OR
-                Native.DeleteObject(one);
-            }
-            Native.SetWindowRgn(Hwnd(w), rgn, true); // Windows owns the region afterwards
+            var clip = new GeometryGroup { FillRule = FillRule.Nonzero };
+            foreach (var (r, rad) in shapes) clip.Children.Add(new RectangleGeometry(r, rad, rad));
+            layer.Clip = clip;
         };
     }
 
-    static void CollectShapes(Visual root, DependencyObject d, double s, Rect clip, List<(int, int, int, int, int)> shapes)
+    static void CollectShapes(Visual root, DependencyObject d, Rect clip, List<(Rect, double)> shapes)
     {
         for (int i = 0; i < VisualTreeHelper.GetChildrenCount(d); i++)
         {
@@ -132,21 +142,19 @@ static class UI
             {
                 var view = sv.TransformToAncestor(root).TransformBounds(new Rect(sv.RenderSize));
                 view.Intersect(clip);
-                if (view.IsEmpty) continue;
-                CollectShapes(root, child, s, view, shapes);
+                if (!view.IsEmpty) CollectShapes(root, child, view, shapes);
                 continue;
             }
             if (child is FrameworkElement fe && !double.IsNaN(GetGlassRadius(fe)))
             {
                 if (fe.Visibility != Visibility.Visible || fe.ActualWidth == 0) continue;
                 var b = fe.TransformToAncestor(root).TransformBounds(new Rect(fe.RenderSize));
-                b.Intersect(clip);
-                if (b.IsEmpty || b.Height < 1) continue;
                 double rad = Math.Min(GetGlassRadius(fe), Math.Min(b.Width, b.Height) / 2);
-                shapes.Add(((int)Math.Round(b.Left * s), (int)Math.Round(b.Top * s), (int)Math.Round(b.Right * s), (int)Math.Round(b.Bottom * s), (int)Math.Round(rad * s)));
+                b.Intersect(clip);
+                if (!b.IsEmpty && b.Height >= 1) shapes.Add((b, rad));
                 continue; // a shape's insides don't add shapes
             }
-            CollectShapes(root, child, s, clip, shapes);
+            CollectShapes(root, child, clip, shapes);
         }
     }
 
@@ -209,15 +217,11 @@ static class UI
         el.BeginAnimation(UIElement.OpacityProperty, fade);
     }
 
-    /// <summary>Blur behind a menu, clipped to its 12px rounded corners (menus are WPF popups, which are layered windows).</summary>
+    /// <summary>macOS menu glass: the blurred screen behind the menu, inside its rounded panel (see <see cref="Backdrop"/>).</summary>
     public static void GlassMenu(ContextMenu menu)
     {
-        if (PresentationSource.FromVisual(menu) is not HwndSource src) return;
-        IntPtr h = src.Handle;
-        Native.EnableBlur(h, acrylicTint: GlassAcrylic);
-        double s = Scale(menu);
-        int w = (int)Math.Ceiling(menu.ActualWidth * s), ht = (int)Math.Ceiling(menu.ActualHeight * s), r = (int)(28 * s); // the menu's 14px corners
-        if (w > 0 && ht > 0) Native.SetWindowRgn(h, Native.CreateRoundRectRgn(1, 1, w, ht, r, r), true); // inside the edge: no blur poking out
+        if (VisualTreeHelper.GetChildrenCount(menu) == 0 || VisualTreeHelper.GetChild(menu, 0) is not Border panel || panel.ActualWidth == 0) return;
+        if (Backdrop.Brush(Backdrop.ScreenRect(panel), Color.FromRgb(0x24, 0x24, 0x26), 0.5) is { } glass) panel.Background = glass;
     }
 
     /// <summary>Activate a launcher window; falls back to forcing it forward when Windows' focus rules refuse (hook hotkeys).</summary>

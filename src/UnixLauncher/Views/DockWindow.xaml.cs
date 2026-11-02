@@ -30,7 +30,6 @@ public partial class DockWindow : Window
     }
 
     IntPtr _hwnd;
-    readonly Window? _glass; // acrylic backdrop kept under the shelf (Windows 11 22H2+)
     List<WinInfo> _windows = new();
     string _signature = "";
     // Parallel lists describing the stack, in order. Visual is null for separators.
@@ -62,19 +61,6 @@ public partial class DockWindow : Window
     public DockWindow()
     {
         InitializeComponent();
-        {
-            // This window spans the whole screen edge (room for magnified icons), so blurring it would blur
-            // that entire strip. Instead a separate shelf-sized blur window sits directly underneath. It uses the
-            // menu bar's accent blur: the system acrylic ignores the rounded window region and showed square corners.
-            _glass = new Window
-            {
-                ShowInTaskbar = false, ShowActivated = false, Topmost = true, ResizeMode = ResizeMode.NoResize, Title = "Dock Backdrop",
-                WindowStyle = WindowStyle.None, AllowsTransparency = true, Background = new SolidColorBrush(Color.FromArgb(1, 0, 0, 0)),
-            };
-            _glass.SourceInitialized += (_, _) => { Native.SetToolWindow(UI.Hwnd(_glass), true); Native.EnableBlur(UI.Hwnd(_glass)); };
-            ShelfBg.Background = new SolidColorBrush(Color.FromArgb(0x1A, 0xFF, 0xFF, 0xFF)); // light glass over the real blur
-            ShelfBg.SizeChanged += (_, _) => SyncGlass();
-        }
         SourceInitialized += (_, _) =>
         {
             _hwnd = UI.Hwnd(this);
@@ -90,7 +76,7 @@ public partial class DockWindow : Window
         };
 
         var poll = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
-        poll.Tick += (_, _) => RefreshWindows();
+        poll.Tick += (_, _) => { RefreshWindows(); SyncGlass(); };
         poll.Start();
         var hover = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(100) };
         hover.Tick += (_, _) => AutoHideTick();
@@ -159,20 +145,11 @@ public partial class DockWindow : Window
         SyncGlass();
     }
 
-    /// <summary>Keep the acrylic backdrop exactly under the shelf, just below this window in z-order.</summary>
+    /// <summary>The shelf's glass: the blurred screen behind it, inside its rounded border (see <see cref="Backdrop"/>). Refreshed each second.</summary>
     void SyncGlass()
     {
-        if (_glass == null) return;
-        if (!IsVisible || !_autoShown || ShelfBg.ActualWidth == 0) { _glass.Hide(); return; }
-        var a = ShelfBg.PointToScreen(new Point(0, 0));
-        var b = ShelfBg.PointToScreen(new Point(ShelfBg.ActualWidth, ShelfBg.ActualHeight));
-        int w = (int)Math.Round(b.X - a.X), h = (int)Math.Round(b.Y - a.Y), r = (int)Math.Round(ShelfRadius * 2 * UI.Scale(this));
-        _glass.Show();
-        var glass = UI.Hwnd(_glass);
-        Native.SetWindowPos(glass, _hwnd, (int)a.X, (int)a.Y, w, h, Native.SWP_NOACTIVATE);
-        // DWM only rounds windows by 8px; clip the blur to the shelf's own radius (the shelf's rim hides the region's hard edge).
-        // 1px inside the shelf's rim: GDI's rounded region is jagged and slightly larger than the drawn curve. Windows owns it afterwards.
-        Native.SetWindowRgn(glass, Native.CreateRoundRectRgn(1, 1, w, h, r, r), true);
+        if (!IsVisible || !_autoShown || ShelfBg.ActualWidth == 0) return;
+        if (Backdrop.Brush(Backdrop.ScreenRect(ShelfBg), Color.FromRgb(0x2A, 0x2A, 0x2E), 0.3) is { } glass) ShelfBg.Background = glass;
     }
 
     // ---------- Items ----------
