@@ -3,28 +3,32 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:local="clr-namespace:UnixLauncher.Views"
         Width="676" SizeToContent="Height" Title="Spotlight" Foreground="{StaticResource Text}">
-    <Border Background="{StaticResource PanelBg}" BorderBrush="{StaticResource Line}" BorderThickness="1" CornerRadius="14" Padding="10">
-        <StackPanel>
-            <DockPanel Margin="6,2">
+    <!-- macOS 27: a capsule search field and, below it, a separate results card, each its own glass (UI.FloatingGlass) -->
+    <StackPanel>
+        <Border Background="#A0262628" CornerRadius="30" Height="60" Padding="22,0" local:UI.GlassRadius="30">
+            <DockPanel VerticalAlignment="Center">
                 <ContentControl x:Name="SearchIcon" DockPanel.Dock="Left" Margin="0,0,12,0" VerticalAlignment="Center"/>
                 <Grid>
-                    <TextBlock x:Name="Placeholder" Text="Spotlight Search" FontSize="22" Foreground="{StaticResource SubText}" Margin="2,0,0,0" IsHitTestVisible="False"/>
+                    <TextBlock x:Name="Placeholder" Text="Search" FontSize="22" Foreground="{StaticResource SubText}" Margin="2,0,0,0" IsHitTestVisible="False"/>
                     <TextBox x:Name="Query" Style="{StaticResource SearchBox}" FontSize="22" TextChanged="Query_Changed" PreviewKeyDown="Query_Keys"/>
                 </Grid>
             </DockPanel>
-            <ListBox x:Name="Results" Background="Transparent" BorderThickness="0" Margin="0,8,0,0" Visibility="Collapsed"
+        </Border>
+        <Border x:Name="ResultsCard" Background="#A0262628" CornerRadius="24" Padding="8" Margin="0,10,0,0" local:UI.GlassRadius="24"
+                Visibility="{Binding Visibility, ElementName=Results}">
+            <ListBox x:Name="Results" Background="Transparent" BorderThickness="0" Visibility="Collapsed"
                      ItemContainerStyle="{StaticResource ResultItem}" ScrollViewer.HorizontalScrollBarVisibility="Disabled"
                      PreviewMouseLeftButtonUp="Results_Click">
                 <ListBox.ItemTemplate>
                     <DataTemplate>
                         <DockPanel>
-                            <Image Source="{Binding Icon}" Width="24" Height="24" Margin="0,0,10,0"/>
+                            <Image Source="{Binding Icon}" Width="32" Height="32" Margin="0,0,12,0"/>
                             <TextBlock DockPanel.Dock="Right" Text="{Binding Subtitle}" Opacity="0.6" VerticalAlignment="Center"/>
                             <TextBlock Text="{Binding Title}" FontSize="14" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
                         </DockPanel>
                     </DataTemplate>
                 </ListBox.ItemTemplate>
             </ListBox>
-        </StackPanel>
-    </Border>
+        </Border>
+    </StackPanel>
 </local:Popover>

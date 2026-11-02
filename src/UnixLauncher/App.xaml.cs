@@ -51,6 +51,7 @@ public partial class App : Application
         Views.NativeButtons.RestoreLeftovers(); // if the last run didn't exit cleanly, apps get their title bar buttons back
         Native.UseDarkMenus();
         Resources["UiFont"] = new FontFamily(Settings.Current.FontFamily);
+        UseWindowsAccent();
 
         ShellMode = Native.FindWindow("Shell_TrayWnd", null) == IntPtr.Zero;
         if (ShellMode) Sys.RunStartupAppsOnce();
@@ -102,6 +103,21 @@ public partial class App : Application
     }
 
     public static void Quit() => Current.Shutdown();
+
+    /// <summary>
+    /// Highlights, switches and sidebar icons use the Windows accent colour, as macOS uses its accent colour. Set before any
+    /// window loads: the theme looks "Accent" up once.
+    /// </summary>
+    void UseWindowsAccent()
+    {
+        try
+        {
+            var c = new global::Windows.UI.ViewManagement.UISettings().GetColorValue(global::Windows.UI.ViewManagement.UIColorType.Accent);
+            foreach (var d in Resources.MergedDictionaries)
+                if (d.Contains("Accent")) d["Accent"] = new SolidColorBrush(Color.FromRgb(c.R, c.G, c.B));
+        }
+        catch (Exception ex) { Log(ex); } // keep the theme's macOS blue
+    }
 
     public const string BarTitle = "UnixLauncher.MenuBar", InstanceMutex = "UnixLauncher.SingleInstance";
     public const int OpenMessage = 1, QuitMessage = 2; // WM_COPYDATA kinds sent to the running copy

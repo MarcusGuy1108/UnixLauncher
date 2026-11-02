@@ -112,7 +112,7 @@
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="ToggleButton">
-                        <Border x:Name="Bd" Background="Transparent" CornerRadius="4" Padding="8,3">
+                        <Border x:Name="Bd" Background="Transparent" CornerRadius="13" Padding="8,3">
                             <ContentPresenter/>
                         </Border>
                         <ControlTemplate.Triggers>
@@ -143,19 +143,26 @@
             <!-- Unified toolbar: drag the window from any empty part of it -->
             <Grid DockPanel.Dock="Top" Height="52" Background="Transparent" MouseLeftButtonDown="DragArea_MouseDown">
                 <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="8,0,0,0">
-                    <Button x:Name="BackBtn" Style="{StaticResource FlatButton}" Click="Back_Click" ToolTip="Back (Alt+Left)"/>
-                    <Button x:Name="ForwardBtn" Style="{StaticResource FlatButton}" Click="Forward_Click" ToolTip="Forward (Alt+Right)"/>
+                    <!-- macOS 27 toolbar: controls grouped in glass capsules -->
+                    <Border CornerRadius="15" Background="{StaticResource CardBg}" Padding="2">
+                        <StackPanel Orientation="Horizontal">
+                            <Button x:Name="BackBtn" Style="{StaticResource FlatButton}" Click="Back_Click" ToolTip="Back"/>
+                            <Button x:Name="ForwardBtn" Style="{StaticResource FlatButton}" Click="Forward_Click" ToolTip="Forward"/>
+                        </StackPanel>
+                    </Border>
                     <TextBlock x:Name="TitleText" FontSize="15" FontWeight="SemiBold" VerticalAlignment="Center" Margin="8,0,0,0" Foreground="{StaticResource Text}"/>
                 </StackPanel>
                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,12,0">
-                    <Border CornerRadius="6" Background="{StaticResource CardBg}" Padding="2">
+                    <Border CornerRadius="15" Background="{StaticResource CardBg}" Padding="2">
                         <StackPanel Orientation="Horizontal">
                             <ToggleButton x:Name="IconsBtn" Style="{StaticResource ViewToggle}" Click="IconsView_Click" ToolTip="as Icons (Ctrl+1)"/>
                             <ToggleButton x:Name="ListBtn" Style="{StaticResource ViewToggle}" Click="ListView_Click" ToolTip="as List (Ctrl+2)"/>
                         </StackPanel>
                     </Border>
-                    <Button x:Name="ActionBtn" Style="{StaticResource FlatButton}" Click="Action_Click" ToolTip="Actions" Margin="6,0,0,0"/>
-                    <Border Width="200" CornerRadius="6" Background="{StaticResource CardBg}" Padding="8,3" Margin="6,0,0,0">
+                    <Border CornerRadius="15" Background="{StaticResource CardBg}" Padding="2" Margin="6,0,0,0">
+                        <Button x:Name="ActionBtn" Style="{StaticResource FlatButton}" Click="Action_Click" ToolTip="Actions"/>
+                    </Border>
+                    <Border Width="200" CornerRadius="15" Background="{StaticResource CardBg}" Padding="8,3" Margin="6,0,0,0">
                         <DockPanel>
                             <ContentControl x:Name="SearchIcon" Margin="0,0,6,0" VerticalAlignment="Center"/>
                             <Grid>

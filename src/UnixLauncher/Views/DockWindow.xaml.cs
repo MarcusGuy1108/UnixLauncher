@@ -39,6 +39,7 @@ public partial class DockWindow : Window
     readonly List<bool> _scalable = new();
     readonly List<FrameworkElement> _pinSlots = new();
     readonly List<(Entry entry, FrameworkElement slot)> _entrySlots = new();
+    readonly List<(string app, Border badge)> _badges = new();
     int _shellHookMsg;
     Image? _trashImage;
     bool? _trashFull;
@@ -97,6 +98,7 @@ public partial class DockWindow : Window
 
         Settings.Changed += () => { Icons.ClearCache(); _signature = ""; Layout(); RefreshWindows(); };
         AppIndex.Loaded += () => { _signature = ""; RefreshWindows(); };
+        Notifications.Changed += UpdateBadges;
         MouseMove += (_, e) => Magnify(e.GetPosition(Root));
         MouseLeave += (_, _) => Magnify(null);
         MouseEnter += (_, _) => RefreshTrash();
@@ -201,7 +203,7 @@ public partial class DockWindow : Window
     void Rebuild(List<Entry> entries, int pinCount)
     {
         Items.Children.Clear();
-        _visuals.Clear(); _baseSizes.Clear(); _scalable.Clear(); _pinSlots.Clear(); _entrySlots.Clear();
+        _visuals.Clear(); _baseSizes.Clear(); _scalable.Clear(); _pinSlots.Clear(); _entrySlots.Clear(); _badges.Clear();
         for (int i = 0; i < entries.Count; i++)
         {
             if (i == pinCount) AddSeparator(); // pinned | running-but-not-pinned
@@ -213,6 +215,7 @@ public partial class DockWindow : Window
         _trashFull = null;
         AddIcon(new Entry { Trash = true });
         RefreshTrash();
+        UpdateBadges();
     }
 
     void AddSeparator()
@@ -272,7 +275,17 @@ public partial class DockWindow : Window
         var slot = new DockPanel { Margin = new Thickness(Gap), Background = Brushes.Transparent, ToolTip = name, LastChildFill = true };
         DockPanel.SetDock(dot, Edge switch { "Left" => System.Windows.Controls.Dock.Left, "Right" => System.Windows.Controls.Dock.Right, _ => System.Windows.Controls.Dock.Bottom });
         slot.Children.Add(dot);
-        slot.Children.Add(visual);
+        // macOS notification badge: red count on the icon's top-right, from the app's notifications in Notification Centre.
+        var badge = new Border
+        {
+            Background = new SolidColorBrush(Color.FromRgb(0xFF, 0x3B, 0x30)), CornerRadius = new CornerRadius(9), MinWidth = 18, Height = 18,
+            Padding = new Thickness(5, 0, 5, 0), HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Top,
+            Margin = new Thickness(0, -4, -4, 0), Visibility = Visibility.Collapsed, IsHitTestVisible = false,
+            Child = new TextBlock { Foreground = Brushes.White, FontSize = 11, FontWeight = FontWeights.SemiBold, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center },
+        };
+        if (!e.Trash) _badges.Add((name, badge));
+        var holder = new Grid { Children = { visual, badge } }; // the badge rides on the icon, magnified with it
+        slot.Children.Add(holder);
         slot.VerticalAlignment = Vertical ? VerticalAlignment.Center : VerticalAlignment.Bottom;
         slot.HorizontalAlignment = Vertical ? (Edge == "Left" ? HorizontalAlignment.Left : HorizontalAlignment.Right) : HorizontalAlignment.Center;
         ToolTipService.SetPlacement(slot, Edge switch { "Left" => PlacementMode.Right, "Right" => PlacementMode.Left, _ => PlacementMode.Top });
@@ -293,6 +306,16 @@ public partial class DockWindow : Window
         Items.Children.Add(slot);
         _visuals.Add(visual); _baseSizes.Add(IconSize + Gap * 2); _scalable.Add(true);
         return slot;
+    }
+
+    void UpdateBadges()
+    {
+        foreach (var (app, badge) in _badges)
+        {
+            int n = Notifications.Items.Count(x => string.Equals(x.App, app, StringComparison.OrdinalIgnoreCase));
+            badge.Visibility = n > 0 ? Visibility.Visible : Visibility.Collapsed;
+            ((TextBlock)badge.Child).Text = n > 99 ? "99+" : n.ToString();
+        }
     }
 
     void RefreshTrash()

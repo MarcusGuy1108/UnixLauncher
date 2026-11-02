@@ -16,9 +16,14 @@ public partial class Spotlight : Popover
     public Spotlight()
     {
         InitializeComponent();
+        UI.FloatingGlass(this);
         SearchIcon.Content = UI.Icon("search", "", 20);
         Activated += (_, _) => Keyboard.Focus(Query);
     }
+
+    protected override bool UseGlass => false; // a field and a results card, each its own glass
+    protected override void AnimateIn(FrameworkElement root) => UI.PopIn(root, from: 1); // the clip follows layout: fade only
+    protected override void AnimateOut(FrameworkElement root, Action done) => UI.PopOut(root, done, to: 1);
 
     protected override void OnOpening()
     {

@@ -76,7 +76,7 @@ public class Settings
     public List<DockPin> Pinned { get; set; } = new()
     {
         FinderPin(),
-        new() { Name = "Launchpad", Launch = "::launchpad" },
+        new() { Name = "Apps", Launch = "::launchpad" }, // macOS 26 renamed Launchpad to Apps
         new() { Name = "Settings", Launch = @"shell:AppsFolder\windows.immersivecontrolpanel_cw5n1h2txyewy!microsoft.windows.immersivecontrolpanel",
                 Aumid = "windows.immersivecontrolpanel_cw5n1h2txyewy!microsoft.windows.immersivecontrolpanel" },
         new() { Name = "Downloads", Launch = Sys.Downloads },
@@ -100,6 +100,7 @@ public class Settings
             int i = Current.Pinned.FindIndex(p => p.Name == "File Explorer" && p.Exe == "explorer.exe");
             if (i >= 0 && !Current.Pinned.Any(p => p.Launch == "::finder")) Current.Pinned[i] = FinderPin();
             Sys.FixDownloadsPin(Current.Pinned);
+            foreach (var p in Current.Pinned) if (p.Launch == "::launchpad" && p.Name == "Launchpad") p.Name = "Apps";
             if (Current.FontFamily == "Segoe UI Variable Text, Segoe UI") Current.FontFamily = DefaultFont; // the old default: pick up SF Pro
         }
         catch (Exception ex)

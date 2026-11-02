@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
@@ -81,6 +82,59 @@ static class UI
 {
     public static IntPtr Hwnd(Window w) => new WindowInteropHelper(w).EnsureHandle();
 
+    /// <summary>Marks an element as one floating glass shape (see <see cref="FloatingGlass"/>), with this corner radius.</summary>
+    public static readonly DependencyProperty GlassRadiusProperty =
+        DependencyProperty.RegisterAttached("GlassRadius", typeof(double), typeof(UI), new PropertyMetadata(double.NaN));
+    public static double GetGlassRadius(DependencyObject d) => (double)d.GetValue(GlassRadiusProperty);
+    public static void SetGlassRadius(DependencyObject d, double v) => d.SetValue(GlassRadiusProperty, v);
+
+    /// <summary>
+    /// macOS 27 panels made of separate pieces of glass (Control Centre's tiles, Spotlight's field and results): blur the
+    /// desktop only behind the elements marked with UI.GlassRadius, by clipping the window to their rounded shapes.
+    /// The window must be layered (no system backdrop: that ignores the clip). Gaps between pieces let clicks through.
+    /// </summary>
+    public static void FloatingGlass(Window w)
+    {
+        string last = "";
+        w.SourceInitialized += (_, _) => Native.EnableBlur(Hwnd(w));
+        w.LayoutUpdated += (_, _) =>
+        {
+            if (w.Content is not Visual root) return; // also while hidden, so the clip is right before the first frame
+            double s = Scale(w);
+            var shapes = new List<(int l, int t, int r, int b, int rad)>();
+            CollectShapes(root, root, s, shapes);
+            if (shapes.Count == 0) return;
+            string sig = string.Join(";", shapes);
+            if (sig == last) return; // layout passes run all the time: only re-clip when a shape moved
+            last = sig;
+            IntPtr rgn = Native.CreateRectRgn(0, 0, 0, 0);
+            foreach (var (l, t, r, b, rad) in shapes)
+            {
+                IntPtr one = Native.CreateRoundRectRgn(l, t, r + 1, b + 1, rad * 2, rad * 2);
+                Native.CombineRgn(rgn, rgn, one, 2); // RGN_OR
+                Native.DeleteObject(one);
+            }
+            Native.SetWindowRgn(Hwnd(w), rgn, true); // Windows owns the region afterwards
+        };
+    }
+
+    static void CollectShapes(Visual root, DependencyObject d, double s, List<(int, int, int, int, int)> shapes)
+    {
+        for (int i = 0; i < VisualTreeHelper.GetChildrenCount(d); i++)
+        {
+            var child = VisualTreeHelper.GetChild(d, i);
+            if (child is FrameworkElement fe && !double.IsNaN(GetGlassRadius(fe)))
+            {
+                if (fe.Visibility != Visibility.Visible || fe.ActualWidth == 0) continue;
+                var b = fe.TransformToAncestor(root).TransformBounds(new Rect(fe.RenderSize));
+                double rad = Math.Min(GetGlassRadius(fe), Math.Min(b.Width, b.Height) / 2);
+                shapes.Add(((int)Math.Round(b.Left * s), (int)Math.Round(b.Top * s), (int)Math.Round(b.Right * s), (int)Math.Round(b.Bottom * s), (int)Math.Round(rad * s)));
+                continue; // a shape's insides don't add shapes
+            }
+            CollectShapes(root, child, s, shapes);
+        }
+    }
+
     /// <summary>Device pixels per DIP for this window (DPI scale).</summary>
     public static double Scale(Visual v) => PresentationSource.FromVisual(v)?.CompositionTarget?.TransformToDevice.M11 ?? 1;
 
@@ -147,7 +201,7 @@ static class UI
         IntPtr h = src.Handle;
         Native.EnableBlur(h);
         double s = Scale(menu);
-        int w = (int)Math.Ceiling(menu.ActualWidth * s), ht = (int)Math.Ceiling(menu.ActualHeight * s), r = (int)(24 * s);
+        int w = (int)Math.Ceiling(menu.ActualWidth * s), ht = (int)Math.Ceiling(menu.ActualHeight * s), r = (int)(28 * s); // the menu's 14px corners
         if (w > 0 && ht > 0) Native.SetWindowRgn(h, Native.CreateRoundRectRgn(0, 0, w + 1, ht + 1, r, r), true);
     }
 

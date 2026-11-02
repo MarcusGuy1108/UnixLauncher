@@ -12,9 +12,15 @@ public partial class ControlCentre : Popover
     bool _loading;
     readonly DispatcherTimer _brightnessDebounce = new() { Interval = TimeSpan.FromMilliseconds(120) };
 
+    protected override bool UseGlass => false; // separate pieces of glass instead of one panel
+    // The clip follows the layout, not a scale animation: fade only.
+    protected override void AnimateIn(FrameworkElement root) => UI.PopIn(root, from: 1);
+    protected override void AnimateOut(FrameworkElement root, Action done) => UI.PopOut(root, done, to: 1);
+
     public ControlCentre()
     {
         InitializeComponent();
+        UI.FloatingGlass(this);
         // Glyphs inherit their colour so a switched-on circle can turn them blue.
         WifiTile.Tag = UI.Icon("wifi", "", 16, inheritColor: true);
         BtTile.Tag = UI.Icon("bluetooth", "", 18, inheritColor: true);

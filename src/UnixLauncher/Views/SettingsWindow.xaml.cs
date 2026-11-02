@@ -51,6 +51,8 @@ public partial class SettingsWindow : MacWindow
     {
         UnifiedToolbar = true;
         InitializeComponent();
+        Activated += (_, _) => HighlightNav();
+        Deactivated += (_, _) => HighlightNav();
         SearchIcon.Content = UI.Icon("search", "", 12);
         foreach (var p in Pages) AddNav(p);
         _saveDebounce.Tick += (_, _) => { _saveDebounce.Stop(); Settings.Save(); };
@@ -240,7 +242,14 @@ public partial class SettingsWindow : MacWindow
         PageTitle.Text = p.Name;
         Page.Children.Clear();
         foreach (var el in p.Build(this)) Page.Children.Add(el);
-        foreach (var (n, b, _) in _nav) b.Background = n == p.Name ? (Brush)FindResource("Accent") : Brushes.Transparent;
+        HighlightNav();
+    }
+
+    // macOS: the selected row is in the accent colour while the window is in front, grey behind other windows.
+    void HighlightNav()
+    {
+        var on = IsActive ? (Brush)FindResource("Accent") : new SolidColorBrush(Color.FromRgb(0x46, 0x46, 0x49));
+        foreach (var (n, b, _) in _nav) b.Background = n == _page ? on : Brushes.Transparent;
     }
 
     void Search_Changed(object sender, TextChangedEventArgs e)

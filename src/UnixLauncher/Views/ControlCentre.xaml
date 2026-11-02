@@ -3,8 +3,13 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:local="clr-namespace:UnixLauncher.Views"
         Width="336" SizeToContent="Height" Title="Control Centre" Foreground="{StaticResource Text}" FontSize="13">
-    <!-- macOS 26 layout: separate glass pills and circles. Left-click acts; right-click a toggle for its Windows settings page. -->
-    <Border Background="{StaticResource PanelBg}" BorderBrush="{StaticResource Line}" BorderThickness="1" CornerRadius="22" Padding="14">
+    <!-- macOS 27: no panel, every pill, circle and card is its own piece of glass floating over the desktop (UI.FloatingGlass).
+         Left-click acts; right-click a toggle for its Windows settings page. -->
+    <local:Popover.Resources>
+        <!-- Tile tint over the blurred desktop: darker than inside a panel so text stays readable on bright wallpaper -->
+        <SolidColorBrush x:Key="CardBg" Color="#A0262628"/>
+    </local:Popover.Resources>
+    <Border Background="{x:Null}" Padding="14">
         <StackPanel>
             <Grid>
                 <Grid.ColumnDefinitions>
@@ -14,7 +19,7 @@
                     <RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/>
                 </Grid.RowDefinitions>
 
-                <ToggleButton x:Name="WifiTile" Grid.ColumnSpan="2" Style="{StaticResource CcPill}" Margin="0,0,5,10" Click="Wifi_Click"
+                <ToggleButton x:Name="WifiTile" local:UI.GlassRadius="28" Grid.ColumnSpan="2" Style="{StaticResource CcPill}" Margin="0,0,5,10" Click="Wifi_Click"
                               MouseRightButtonUp="OpenSettings" CommandParameter="ms-settings:network-wifi">
                     <StackPanel>
                         <TextBlock Text="Wi-Fi" FontWeight="SemiBold"/>
@@ -23,7 +28,7 @@
                 </ToggleButton>
 
                 <!-- Now Playing: art, title and transport controls -->
-                <Border Grid.Column="2" Grid.ColumnSpan="2" Grid.RowSpan="2" CornerRadius="22" Background="{StaticResource CardBg}" Padding="12,10" Margin="5,0,0,10">
+                <Border Grid.Column="2" Grid.ColumnSpan="2" Grid.RowSpan="2" CornerRadius="22" local:UI.GlassRadius="22" Background="{StaticResource CardBg}" Padding="12,10" Margin="5,0,0,10">
                     <DockPanel>
                         <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" HorizontalAlignment="Center">
                             <Button x:Name="PrevBtn" Style="{StaticResource FlatButton}" Padding="6,2" Click="Prev_Click"/>
@@ -40,23 +45,23 @@
                     </DockPanel>
                 </Border>
 
-                <ToggleButton x:Name="BtTile" Grid.Row="1" Style="{StaticResource CcCircle}" Margin="0,0,0,10" Click="Bluetooth_Click"
+                <ToggleButton x:Name="BtTile" local:UI.GlassRadius="28" Grid.Row="1" Style="{StaticResource CcCircle}" Margin="0,0,0,10" Click="Bluetooth_Click"
                               MouseRightButtonUp="OpenSettings" CommandParameter="ms-settings:bluetooth" ToolTip="Bluetooth"/>
-                <Button x:Name="ShareBtn" Grid.Row="1" Grid.Column="1" Style="{StaticResource CcCircle}" Margin="0,0,0,10" Click="Share_Click"
+                <Button x:Name="ShareBtn" local:UI.GlassRadius="28" Grid.Row="1" Grid.Column="1" Style="{StaticResource CcCircle}" Margin="0,0,0,10" Click="Share_Click"
                         ToolTip="Nearby sharing (Windows' AirDrop)"/>
 
-                <ToggleButton x:Name="FocusTile" Grid.Row="2" Grid.ColumnSpan="2" Style="{StaticResource CcPill}" Margin="0,0,5,0" Click="Focus_Click"
+                <ToggleButton x:Name="FocusTile" local:UI.GlassRadius="28" Grid.Row="2" Grid.ColumnSpan="2" Style="{StaticResource CcPill}" Margin="0,0,5,0" Click="Focus_Click"
                               MouseRightButtonUp="OpenSettings" CommandParameter="ms-settings:notifications">
                     <StackPanel>
                         <TextBlock Text="Focus" FontWeight="SemiBold"/>
                         <TextBlock x:Name="FocusSub" Foreground="{StaticResource SubText}" FontSize="11"/>
                     </StackPanel>
                 </ToggleButton>
-                <Button x:Name="TaskViewBtn" Grid.Row="2" Grid.Column="2" Style="{StaticResource CcCircle}" Click="TaskView_Click" ToolTip="Task View (windows and desktops)"/>
-                <Button x:Name="MirrorBtn" Grid.Row="2" Grid.Column="3" Style="{StaticResource CcCircle}" Click="Mirror_Click" ToolTip="Screen Mirroring (Win+K)"/>
+                <Button x:Name="TaskViewBtn" local:UI.GlassRadius="28" Grid.Row="2" Grid.Column="2" Style="{StaticResource CcCircle}" Click="TaskView_Click" ToolTip="Task View (windows and desktops)"/>
+                <Button x:Name="MirrorBtn" local:UI.GlassRadius="28" Grid.Row="2" Grid.Column="3" Style="{StaticResource CcCircle}" Click="Mirror_Click" ToolTip="Screen Mirroring (Win+K)"/>
             </Grid>
 
-            <Border x:Name="DisplayCard" CornerRadius="18" Background="{StaticResource CardBg}" Padding="14,8,14,10" Margin="0,10,0,0">
+            <Border x:Name="DisplayCard" local:UI.GlassRadius="18" CornerRadius="18" Background="{StaticResource CardBg}" Padding="14,8,14,10" Margin="0,10,0,0">
                 <StackPanel>
                     <TextBlock Text="Display" FontWeight="SemiBold" Margin="0,0,0,6"/>
                     <DockPanel>
@@ -67,7 +72,7 @@
                 </StackPanel>
             </Border>
 
-            <Border x:Name="SoundCard" CornerRadius="18" Background="{StaticResource CardBg}" Padding="14,8,10,10" Margin="0,10,0,0">
+            <Border x:Name="SoundCard" local:UI.GlassRadius="18" CornerRadius="18" Background="{StaticResource CardBg}" Padding="14,8,10,10" Margin="0,10,0,0">
                 <StackPanel>
                     <TextBlock Text="Sound" FontWeight="SemiBold" Margin="0,0,0,6"/>
                     <DockPanel>
@@ -81,14 +86,14 @@
             </Border>
 
             <UniformGrid Columns="4" Margin="0,10,0,0">
-                <ToggleButton x:Name="DarkTile" Style="{StaticResource CcCircle}" Click="Dark_Click"
+                <ToggleButton x:Name="DarkTile" local:UI.GlassRadius="28" Style="{StaticResource CcCircle}" Click="Dark_Click"
                               MouseRightButtonUp="OpenSettings" CommandParameter="ms-settings:colors" ToolTip="Dark Mode"/>
-                <Button x:Name="CalcBtn" Style="{StaticResource CcCircle}" Click="Calculator_Click" ToolTip="Calculator"/>
-                <Button x:Name="TimerBtn" Style="{StaticResource CcCircle}" Click="Timer_Click" ToolTip="Timer"/>
-                <Button x:Name="ShotBtn" Style="{StaticResource CcCircle}" Click="Screenshot_Click" ToolTip="Screenshot (Win+Shift+S)"/>
+                <Button x:Name="CalcBtn" local:UI.GlassRadius="28" Style="{StaticResource CcCircle}" Click="Calculator_Click" ToolTip="Calculator"/>
+                <Button x:Name="TimerBtn" local:UI.GlassRadius="28" Style="{StaticResource CcCircle}" Click="Timer_Click" ToolTip="Timer"/>
+                <Button x:Name="ShotBtn" local:UI.GlassRadius="28" Style="{StaticResource CcCircle}" Click="Screenshot_Click" ToolTip="Screenshot (Win+Shift+S)"/>
             </UniformGrid>
 
-            <Border CornerRadius="14" Background="{StaticResource CardBg}" HorizontalAlignment="Center" Margin="0,12,0,0">
+            <Border CornerRadius="14" Background="{StaticResource CardBg}" HorizontalAlignment="Center" Margin="0,12,0,0" local:UI.GlassRadius="14">
                 <Button Content="Edit Controls" Style="{StaticResource FlatButton}" FontSize="12" Click="Edit_Click"/>
             </Border>
         </StackPanel>

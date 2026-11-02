@@ -11,7 +11,7 @@
     <!-- Solid: without a real blur behind it, translucency just lets the content underneath bleed through. -->
     <SolidColorBrush x:Key="PanelBg" Color="#FA242426"/>
     <!-- Menus get a real blur behind them (UI.GlassMenu), so they can be translucent like macOS menus -->
-    <SolidColorBrush x:Key="MenuBg" Color="#D0242426"/>
+    <SolidColorBrush x:Key="MenuBg" Color="#A8262628"/> <!-- glassier, as macOS 27 menus: the blur behind keeps it readable -->
     <!-- Laid over real acrylic (Windows 11 22H2+, see Glass in Views/UI.cs) -->
     <SolidColorBrush x:Key="GlassTint" Color="#40161618"/>
     <SolidColorBrush x:Key="BarBg" Color="#A0161618"/>
@@ -62,7 +62,7 @@
             <Setter.Value>
                 <ControlTemplate TargetType="ContextMenu">
                     <Border Background="{StaticResource MenuBg}" BorderBrush="{StaticResource Line}" BorderThickness="1"
-                            CornerRadius="12" Padding="6" MinWidth="200">
+                            CornerRadius="14" Padding="5" MinWidth="200">
                         <ItemsPresenter/>
                     </Border>
                 </ControlTemplate>
@@ -75,7 +75,7 @@
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="MenuItem">
-                    <Border x:Name="Bd" Background="Transparent" CornerRadius="6" Padding="6,4,14,4">
+                    <Border x:Name="Bd" Background="Transparent" CornerRadius="8" Padding="6,4,14,4">
                         <DockPanel>
                             <TextBlock x:Name="Check" Text="✓" Width="16" DockPanel.Dock="Left" Visibility="Hidden"/>
                             <TextBlock Text="{TemplateBinding InputGestureText}" DockPanel.Dock="Right" Margin="20,0,0,0" Foreground="{StaticResource SubText}"/>
@@ -84,7 +84,8 @@
                     </Border>
                     <ControlTemplate.Triggers>
                         <Trigger Property="IsHighlighted" Value="True">
-                            <Setter TargetName="Bd" Property="Background" Value="{StaticResource Accent}"/>
+                            <!-- macOS 27: a soft see-through highlight rather than a solid colour -->
+                            <Setter TargetName="Bd" Property="Background" Value="#33FFFFFF"/>
                         </Trigger>
                         <Trigger Property="IsChecked" Value="True">
                             <Setter TargetName="Check" Property="Visibility" Value="Visible"/>
@@ -227,7 +228,7 @@
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="ButtonBase">
-                    <Border x:Name="Bg" CornerRadius="28" Background="{StaticResource CardBg}">
+                    <Border x:Name="Bg" CornerRadius="28" Background="{DynamicResource CardBg}">
                         <ContentPresenter x:Name="Glyph" Content="{TemplateBinding Tag}" TextElement.Foreground="White"
                                           HorizontalAlignment="Center" VerticalAlignment="Center"/>
                     </Border>
@@ -256,7 +257,7 @@
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="ToggleButton">
-                    <Border CornerRadius="28" Background="{StaticResource CardBg}" Padding="10,0">
+                    <Border CornerRadius="28" Background="{DynamicResource CardBg}" Padding="10,0">
                         <DockPanel>
                             <Border x:Name="Dot" Width="36" Height="36" CornerRadius="18" Background="#40FFFFFF" DockPanel.Dock="Left" Margin="0,0,10,0">
                                 <ContentPresenter x:Name="Glyph" Content="{TemplateBinding Tag}" TextElement.Foreground="White"
@@ -397,12 +398,12 @@
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="ListBoxItem">
-                    <Border x:Name="Bd" CornerRadius="6" Padding="8,5" Background="Transparent">
+                    <Border x:Name="Bd" CornerRadius="12" Padding="10,7" Background="Transparent">
                         <ContentPresenter/>
                     </Border>
                     <ControlTemplate.Triggers>
                         <Trigger Property="IsSelected" Value="True">
-                            <Setter TargetName="Bd" Property="Background" Value="{StaticResource Accent}"/>
+                            <Setter TargetName="Bd" Property="Background" Value="#33FFFFFF"/> <!-- macOS 27: soft highlight -->
                         </Trigger>
                     </ControlTemplate.Triggers>
                 </ControlTemplate>
