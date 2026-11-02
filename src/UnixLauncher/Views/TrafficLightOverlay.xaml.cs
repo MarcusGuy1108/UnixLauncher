@@ -25,6 +25,12 @@ public partial class TrafficLightOverlay : Window
     // Windows opening over the title bar (flyouts, dialogs, other apps' popups) send us no event, so look again now and then.
     readonly DispatcherTimer _recheck = new() { Interval = TimeSpan.FromMilliseconds(250) };
     (IntPtr hwnd, int w, int h) _sampledFor;
+    // Pointer over the buttons' corner: show the pill. Polled, because hidden buttons let clicks through and so get no mouse events.
+    readonly DispatcherTimer _hover = new() { Interval = TimeSpan.FromMilliseconds(40) };
+    DateTime _lastOver;
+    bool _busy;      // the app draws something in that corner (a browser's first tab): buttons only on hover
+    bool _revealed;  // the pill is showing
+    bool _clickThrough;
 
     public TrafficLightOverlay()
     {
@@ -48,6 +54,15 @@ public partial class TrafficLightOverlay : Window
         // Title bars fade from inactive to active colour just after focus changes; sample again once it has settled.
         _resample.Tick += (_, _) => { _resample.Stop(); _sampledFor = default; Track(_target); };
 
+        Root.MouseLeftButtonDown += (_, e) =>
+        {
+            if (e.OriginalSource != Root && e.OriginalSource != Backing && e.OriginalSource != Pill) return; // the buttons handle their own clicks
+            if (e.ClickCount == 2) { Zoom_Click(this, e); return; }
+            Native.ReleaseCapture();
+            Native.PostMessage(_target, Native.WM_SYSCOMMAND, new IntPtr(0xF012), IntPtr.Zero); // drag the window from here too
+        };
+        _hover.Tick += (_, _) => HoverTick();
+        _hover.Start();
         _recheck.Tick += (_, _) => Track(Native.GetForegroundWindow());
         _recheck.Start();
         WindowEvents.Foreground += Track;
@@ -66,14 +81,22 @@ public partial class TrafficLightOverlay : Window
 
         var r = Native.FrameBounds(fg);
         double s = UI.Scale(this);
-        int x = r.Left + (int)(1 * s), y = r.Top + (int)((CaptionHeight - Height) / 2 * s);
+        int x = r.Left + (int)(2 * s), y = r.Top + (int)((CaptionHeight - Height) / 2 * s); // dots start 12px in, as on macOS
         var buttons = CaptionButtons(fg, style, r, s);
         if (_sampledFor != (fg, buttons.Width, buttons.Height)) // new window or new size (maximise/restore): re-read its title bar colour
         {
             _sampledFor = (fg, buttons.Width, buttons.Height);
             if (SampleTitleBar(buttons) is { } c) Backing.Background = _coverFill.Background = new SolidColorBrush(c);
-            // Chromium/Electron put a tab or the app name where the backing would go; covering it looked worse than the dots alone.
-            if (IsChromium(fg)) Backing.Background = null;
+            // Chromium/Electron draw their own title bar: no backing. If that corner holds something (a browser's first tab),
+            // the buttons wait for the pointer; if it's empty (Discord), they stay. Read before we draw there.
+            if (!IsChromium(fg)) _busy = false;
+            else
+            {
+                Backing.Background = null;
+                // While the pill shows we'd only read our own pill, so keep the last answer.
+                if (!_revealed) _busy = CornerBusy(new Native.RECT { Left = x, Top = y, Right = x + (int)(Width * s), Bottom = y + (int)(Height * s) }, s);
+            }
+            ApplyReveal(animate: false);
         }
         // Never draw over something that is on top of the app (a flyout, a dialog, another window): the buttons belong under it.
         var lights = new Native.RECT { Left = x, Top = y, Right = x + (int)(Width * s), Bottom = y + (int)(Height * s) };
@@ -82,6 +105,64 @@ public partial class TrafficLightOverlay : Window
         Native.SetWindowPos(_hwnd, Native.HWND_TOPMOST, x, y, 0, 0, Native.SWP_NOSIZE | Native.SWP_NOACTIVATE | Native.SWP_SHOWWINDOW);
         PlaceCover(style, buttons, r, s);
     }
+
+    void HoverTick()
+    {
+        if (!IsVisible) return;
+        Native.GetCursorPos(out var p);
+        Native.GetWindowRect(_hwnd, out var r);
+        int pad = (int)(6 * UI.Scale(this));
+        bool over = p.X >= r.Left - pad && p.X < r.Right + pad && p.Y >= r.Top - pad && p.Y < r.Bottom + pad;
+        if (over) _lastOver = DateTime.Now;
+        bool want = over || (DateTime.Now - _lastOver).TotalMilliseconds < 350; // a moment's grace, so it doesn't flicker at the edge
+        if (want == _revealed) return;
+        _revealed = want;
+        ApplyReveal(animate: true);
+    }
+
+    void ApplyReveal(bool animate)
+    {
+        Fade(Pill, _revealed ? 1 : 0, animate);
+        Fade(Dots, _busy && !_revealed ? 0 : 1, animate);
+        bool through = _busy && !_revealed; // hidden buttons mustn't eat clicks meant for the tab underneath
+        if (through == _clickThrough) return;
+        _clickThrough = through;
+        long ex = Native.ExStyle(_hwnd);
+        Native.SetWindowLongPtr(_hwnd, -20, new IntPtr(through ? ex | 0x20 : ex & ~0x20L)); // GWL_EXSTYLE, WS_EX_TRANSPARENT
+    }
+
+    static void Fade(UIElement el, double to, bool animate)
+    {
+        if (!animate || !UI.Motion) { el.BeginAnimation(OpacityProperty, null); el.Opacity = to; return; }
+        el.BeginAnimation(OpacityProperty, new System.Windows.Media.Animation.DoubleAnimation(to, TimeSpan.FromMilliseconds(to > 0 ? 120 : 220)));
+    }
+
+    /// <summary>
+    /// Does the app draw something in the buttons' corner? Reads a row of pixels just above and just below where the dots go
+    /// (our own window is see-through there): an empty title bar is one flat colour, a tab or an icon isn't.
+    /// </summary>
+    static bool CornerBusy(Native.RECT area, double scale)
+    {
+        IntPtr dc = Native.GetDC(IntPtr.Zero);
+        try
+        {
+            uint? first = null;
+            foreach (int y in new[] { area.Top + (int)(3 * scale), area.Bottom - (int)(3 * scale) })
+                for (int i = 0; i < 6; i++)
+                {
+                    uint c = Native.GetPixel(dc, area.Left + (int)((4 + i * 14) * scale), y);
+                    if (c == 0xFFFFFFFF) return false; // unreadable: assume empty
+                    first ??= c;
+                    if (Diff(c, first.Value) > 24) return true;
+                }
+            return false;
+        }
+        finally { Native.ReleaseDC(IntPtr.Zero, dc); }
+    }
+
+    static int Diff(uint a, uint b) =>
+        Math.Max(Math.Abs((int)(a & 0xFF) - (int)(b & 0xFF)),
+        Math.Max(Math.Abs((int)(a >> 8 & 0xFF) - (int)(b >> 8 & 0xFF)), Math.Abs((int)(a >> 16 & 0xFF) - (int)(b >> 16 & 0xFF))));
 
     /// <summary>Is any window above <paramref name="target"/> overlapping <paramref name="area"/>? Our own and click-through windows don't count.</summary>
     static bool Covered(IntPtr target, Native.RECT area)
@@ -97,6 +178,8 @@ public partial class TrafficLightOverlay : Window
     void PlaceCover(long style, Native.RECT b, Native.RECT frame, double scale)
     {
         if (!Settings.Current.HideCaptionButtons || (style & Native.WS_SYSMENU) == 0) { _cover.Hide(); return; } // no buttons to hide
+        // Chromium/Electron draw their own buttons, at sizes Windows doesn't report: a cover never lines up, so they keep theirs.
+        if (IsChromium(_target)) { _cover.Hide(); return; }
         // A cover trailing behind a window being dragged, or one placed from odd button bounds some apps report,
         // lands on top of the app's content: only cover what is plainly the buttons in the top-right corner.
         bool plausible = b.Height >= 16 * scale && b.Height <= 64 * scale && b.Width <= 46 * 4 * scale
