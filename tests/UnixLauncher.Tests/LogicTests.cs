@@ -108,6 +108,17 @@ public class CalendarMathTests
 public class MenuTextTests
 {
     [Theory]
+    [InlineData("Ctrl+Shift+Esc", "⇧⌘⎋")]
+    [InlineData("Ctrl+W", "⌘W")]
+    [InlineData("Alt+Enter", "⌘↩")]
+    [InlineData("Win+L", "⌥L")]
+    [InlineData("Delete", "⌦")]
+    [InlineData("Win", "⊞")]
+    [InlineData("Ctrl+[", "⌘[")]
+    [InlineData("", "")]
+    public void MacKeys(string keys, string expected) => Assert.Equal(expected, MenuText.MacKeys(keys));
+
+    [Theory]
     [InlineData("&File", "File")]
     [InlineData("Save &As...\tCtrl+S", "Save As...")]
     [InlineData("Tom && Jerry", "Tom & Jerry")]
@@ -352,5 +363,42 @@ public class HotCornerTests
         Assert.Null(t.Update("Top Left"));   // still there
         Assert.Null(t.Update(null));          // left the corner
         Assert.Equal("Top Left", t.Update("Top Left"));
+    }
+}
+
+public class OptionKeyTests
+{
+    const int Win = WinKeyFilter.LWin, Left = 0x25, Shift = 0xA0, Ctrl = 0xA2;
+    static MacKeyFilter.Key D(int vk) => new(vk, false);
+    static MacKeyFilter.Key U(int vk) => new(vk, true);
+
+    [Fact]
+    public void WinLeftJumpsAWordWithoutWindowsSeeingWin()
+    {
+        var f = new WinKeyFilter { OptionKeys = true };
+        f.Handle(Win, true);
+        var r = f.Handle(Left, true);
+        Assert.True(r.Swallow);
+        Assert.Equal(new[] { D(0xE8), U(0xE8), U(Win), D(Ctrl), D(Left), U(Left), U(Ctrl), D(Win) }, r.Send);
+        Assert.NotNull(f.Handle(Left, true).Send);    // held: keeps jumping
+        Assert.True(f.Handle(Left, false).Swallow);
+        Assert.True(f.Handle(Win, false).InjectMask); // releasing Win doesn't open Start
+    }
+
+    [Fact]
+    public void ShiftStillSelects()
+    {
+        var f = new WinKeyFilter { OptionKeys = true };
+        f.Handle(Win, true);
+        f.Handle(Shift, true);
+        Assert.True(f.Handle(Left, true).Swallow);
+    }
+
+    [Fact]
+    public void OffLeavesWindowsSnapping() // Win+← snaps the window when Mac shortcuts are off
+    {
+        var f = new WinKeyFilter();
+        f.Handle(Win, true);
+        Assert.Equal(default, f.Handle(Left, true));
     }
 }

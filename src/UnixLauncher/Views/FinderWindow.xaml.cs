@@ -702,19 +702,19 @@ public partial class FinderWindow : MacWindow
                 UI.Item("Delete Immediately…", DeleteNow, keys: "Delete"),
                 null,
                 UI.Item($"Quick Look “{first.DisplayName}”", ToggleQuickLook, keys: "Space"),
-                UI.Item("Get Info", GetInfo, keys: "Alt+Enter"));
+                UI.Item("Get Info", GetInfo, keys: "Ctrl+I"));
         if (_current == ThisPcPath)
             return UI.Menu(
-                UI.Item("Open", OpenSelected, keys: "Enter"),
-                UI.Item("Get Info", GetInfo, keys: "Alt+Enter"));
+                UI.Item("Open", OpenSelected, keys: "Ctrl+O"),
+                UI.Item("Get Info", GetInfo, keys: "Ctrl+I"));
         var items = new List<MenuItem?>
         {
-            UI.Item("Open", OpenSelected, keys: "Enter"),
+            UI.Item("Open", OpenSelected, keys: "Ctrl+O"),
             UI.Item("Open With…", () => Process.Start("rundll32.exe", $"shell32.dll,OpenAs_RunDLL {first.Path}"), enabled: one && !first.IsDir),
             null,
-            UI.Item("Move to Recycle Bin", MoveToTrash, keys: "Delete"),
+            UI.Item("Move to Recycle Bin", MoveToTrash, keys: "Ctrl+Backspace"),
             null,
-            UI.Item("Get Info", GetInfo, keys: "Alt+Enter"),
+            UI.Item("Get Info", GetInfo, keys: "Ctrl+I"),
             UI.Item("Rename…", Rename, enabled: one, keys: "F2"),
             UI.Item($"Quick Look “{first.DisplayName}”", ToggleQuickLook, keys: "Space"),
             null,
@@ -761,13 +761,13 @@ public partial class FinderWindow : MacWindow
             ("File", () => UI.Menu(
                 UI.Item("New Finder Window", () => Open(), keys: "Ctrl+N"),
                 UI.Item("New Folder", () => Target().NewFolder(), keys: "Ctrl+Shift+N"),
-                UI.Item("Open", () => w!.OpenSelected(), enabled: Sel(w), keys: "Enter"),
+                UI.Item("Open", () => w!.OpenSelected(), enabled: Sel(w), keys: "Ctrl+O"),
                 UI.Item("Close Window", () => w!.Close(), enabled: w != null, keys: "Ctrl+W"),
                 null,
-                UI.Item("Get Info", () => w!.GetInfo(), enabled: w != null, keys: "Alt+Enter"),
+                UI.Item("Get Info", () => w!.GetInfo(), enabled: w != null, keys: "Ctrl+I"),
                 UI.Item("Rename…", () => w!.Rename(), enabled: Sel(w), keys: "F2"),
                 null,
-                UI.Item("Move to Recycle Bin", () => w!.MoveToTrash(), enabled: Sel(w), keys: "Delete"),
+                UI.Item("Move to Recycle Bin", () => w!.MoveToTrash(), enabled: Sel(w), keys: "Ctrl+Backspace"),
                 null,
                 UI.Item("Quick Look", () => w!.ToggleQuickLook(), enabled: Sel(w), keys: "Space"))),
             ("Edit", () => UI.Menu(
@@ -787,9 +787,9 @@ public partial class FinderWindow : MacWindow
             {
                 var go = new List<MenuItem?>
                 {
-                    UI.Item("Back", () => w!.Back(), enabled: w?._back.Count > 0, keys: "Alt+Left"),
-                    UI.Item("Forward", () => w!.Forward(), enabled: w?._forward.Count > 0, keys: "Alt+Right"),
-                    UI.Item("Enclosing Folder", () => w!.Up(), enabled: w != null, keys: "Alt+Up"),
+                    UI.Item("Back", () => w!.Back(), enabled: w?._back.Count > 0, keys: "Ctrl+["),
+                    UI.Item("Forward", () => w!.Forward(), enabled: w?._forward.Count > 0, keys: "Ctrl+]"),
+                    UI.Item("Enclosing Folder", () => w!.Up(), enabled: w != null, keys: "Ctrl+Up"),
                     null,
                     UI.Item("Applications", () => App.Launchpad.Open()),
                     UI.Item("This PC", () => Target().Navigate(ThisPcPath)),
@@ -1050,6 +1050,7 @@ public partial class FinderWindow : MacWindow
             (Key.D, true, true) => () => Navigate(Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory)),
             (Key.C, true, true) => () => Navigate(ThisPcPath),
             (Key.OemPeriod, true, true) => ToggleHidden,      // ⌘⇧. show / hide hidden files
+            (Key.OemComma, true, false) => SettingsWindow.Open, // ⌘, settings
             (Key.F2, false, _) => Rename,
             (Key.Escape, false, _) when QuickLook.IsOpen => ToggleQuickLook,
             (Key.Enter, false, _) => Settings.Current.MacShortcuts ? Rename : OpenSelected, // Return renames in macOS Finder

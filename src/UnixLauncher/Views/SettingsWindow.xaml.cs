@@ -78,7 +78,7 @@ public partial class SettingsWindow : MacWindow
         Group(null,
             Row("Show menu bar background", "Off gives the clear macOS 26 menu bar.", Switch(Settings.Current.MenuBarBackground, v => Set(s => s.MenuBarBackground = v)))),
         Group("Font",
-            Row("Font family", "San Francisco can't be bundled; type any installed font.",
+            Row("Font family", "SF Pro is used when installed (free from developer.apple.com/fonts); or type any installed font.",
                 TextField(Settings.Current.FontFamily, t => { if (t.Trim().Length > 0) Set(s => s.FontFamily = t.Trim()); }))),
         Group("Icons",
             Row("Custom icons", "Drop PNG or ICO files into the icons folder to replace any icon. README.md there lists the names.",
@@ -153,6 +153,8 @@ public partial class SettingsWindow : MacWindow
             Row("⌘Q  Quit app · ⌘H  Hide · ⌘M  Minimise · ⌘`  Next window", "Alt+Q · Alt+H · Alt+M · Alt+`", null),
             Row("⌘← ⌘→  Line start / end · ⌘↑ ⌘↓  Top / bottom · ⌘⌫  Delete to line start", "Alt + arrows / Backspace; hold Shift to select", null),
             Row("⌘[ ⌘]  Back / forward", "Alt+[ and Alt+]", null),
+            Row("⌥← ⌥→  Word left / right · ⌥⌫ ⌥⌦  Delete a word", "The Windows key sits where ⌥ is: Win + arrows / Backspace / Delete; hold Shift to select. " +
+                "(Win+← and Win+→ no longer snap windows while this is on.)", null),
             Row("⌘⇧3  Screenshot · ⌘⇧4 / ⌘⇧5  Select an area", "Alt+Shift+3, 4, 5", null),
             Row("⌘Space  Spotlight · ⌘Tab  Switch apps", "Alt+Space and Alt+Tab (Windows' own app switcher)", null),
             Row("Finder", "Return renames, ⌘↓ or ⌘O opens, ⌘⌫ moves to the Recycle Bin, ⌘⇧G goes to a folder, ⌘I gets info, " +

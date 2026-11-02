@@ -209,9 +209,14 @@ public sealed class WinKeyFilter
     /// <summary>Read when Win goes down. Off (a full-screen game or an excluded app is in front): Win keys stay Windows'.</summary>
     public bool Enabled { get; set; } = true;
 
-    public readonly record struct Result(bool Swallow, string? Action, bool InjectMask);
+    /// <summary>Mac mode: Win sits where ⌥ is, so Win+←/→/⌫/⌦ (± Shift) move or delete by word like ⌥ does on a Mac.</summary>
+    public bool OptionKeys { get; set; }
 
+    public readonly record struct Result(bool Swallow, string? Action, bool InjectMask, MacKeyFilter.Key[]? Send = null);
+
+    const int LShift = 0xA0, RShift = 0xA1, AnyShift = 0x10, Ctrl = 0xA2, Mask = 0xE8;
     bool _winHeld, _active, _passedOther, _swallowedOther;
+    int _winVk = LWin;
     readonly HashSet<int> _swallowed = new(), _modsHeld = new();
 
     public Result Handle(int vk, bool down)
@@ -220,7 +225,7 @@ public sealed class WinKeyFilter
         {
             if (down)
             {
-                if (!_winHeld) { _winHeld = true; _active = Enabled; _passedOther = _swallowedOther = false; } // ignore auto-repeat
+                if (!_winHeld) { _winHeld = true; _winVk = vk; _active = Enabled; _passedOther = _swallowedOther = false; } // ignore auto-repeat
                 return default;
             }
             _winHeld = false;
@@ -236,6 +241,15 @@ public sealed class WinKeyFilter
         }
         if (!down) return new(_swallowed.Remove(vk), null, false); // swallow the release of a press we swallowed
         if (!_winHeld) return default;
+        if (_active && OptionKeys && vk is 0x25 or 0x27 or 0x08 or 0x2E && _modsHeld.All(m => m is AnyShift or LShift or RShift))
+        {
+            // Windows must not see Win with these (Win+← snaps the window): mask it, let go of it, send Ctrl+key, press it again.
+            _swallowedOther = true;
+            _swallowed.Add(vk);
+            static MacKeyFilter.Key K(int v, bool up) => new(v, up);
+            return new(true, null, false, new[] { K(Mask, false), K(Mask, true), K(_winVk == RWin ? RWin : LWin, true),
+                K(Ctrl, false), K(vk, false), K(vk, true), K(Ctrl, true), K(_winVk == RWin ? RWin : LWin, false) });
+        }
         if (_active && _modsHeld.Count == 0 && Combos.TryGetValue(vk, out var action))
         {
             _swallowedOther = true;
@@ -356,6 +370,27 @@ public static class MenuText
         int tab = raw.IndexOf('\t');
         if (tab >= 0) raw = raw[..tab];
         return raw.Replace("&&", "\0").Replace("&", "").Replace("\0", "&").Trim();
+    }
+
+    /// <summary>
+    /// "Ctrl+Shift+Esc" → "⇧⌘⎋", the way macOS menus write shortcuts. With Alt as ⌘, both Ctrl and Alt shortcuts are
+    /// pressed with the ⌘ key; Win is where ⌥ sits. Modifiers come in macOS order (⌥ ⇧ ⌘) with no plus signs.
+    /// </summary>
+    public static string MacKeys(string keys)
+    {
+        if (keys.Length == 0) return keys;
+        var parts = keys.Split('+');
+        string key = parts[^1], mods = "";
+        var held = parts[..^1];
+        if (held.Contains("Win")) mods += "⌥";
+        if (held.Contains("Shift")) mods += "⇧";
+        if (held.Contains("Ctrl") || held.Contains("Alt")) mods += "⌘";
+        return mods + key switch
+        {
+            "Esc" => "⎋", "Enter" => "↩", "Delete" => "⌦", "Backspace" => "⌫", "Tab" => "⇥",
+            "Left" => "←", "Right" => "→", "Up" => "↑", "Down" => "↓", "Win" => "⊞", // a lone Windows-key tap
+            _ => key,
+        };
     }
 }
 

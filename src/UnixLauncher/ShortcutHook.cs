@@ -25,6 +25,7 @@ static class ShortcutHook
     {
         var s = Settings.Current;
         Win.Combos.Clear();
+        Win.OptionKeys = s.MacShortcuts;
         if (s.ReplaceExplorer) Win.Combos[0x45] = "finder";               // Win+E
         if (s.ReplaceSearch) Win.Combos[0x53] = Win.Combos[0x51] = "spotlight"; // Win+S, Win+Q
         if (s.ReplaceQuickSettings) Win.Combos[0x41] = "controlcentre";   // Win+A
@@ -62,6 +63,7 @@ static class ShortcutHook
                     Inject(new MacKeyFilter.Key(0xE8, false));
                     Inject(new MacKeyFilter.Key(0xE8, true));
                 }
+                if (r.Send != null) foreach (var key in r.Send) Inject(key);
                 if (m.Send != null) foreach (var key in m.Send) Inject(key);
                 // Act after returning: a hook must answer fast or Windows drops it.
                 foreach (var action in new[] { r.Action, m.Action })

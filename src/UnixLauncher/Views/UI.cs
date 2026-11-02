@@ -157,9 +157,12 @@ static class UI
         if (!w.Activate()) Native.ForceForeground(Hwnd(w));
     }
 
+    /// <summary>A shortcut that only exists with Alt as ⌘ (Mac shortcuts on), e.g. ⌘H: shown then, otherwise blank.</summary>
+    public static string MacOnly(string keys) => Settings.Current.MacShortcuts ? keys : "";
+
     public static MenuItem Item(string header, Action action, bool enabled = true, bool isChecked = false, string keys = "")
     {
-        var mi = new MenuItem { Header = header, IsEnabled = enabled, IsChecked = isChecked, InputGestureText = keys };
+        var mi = new MenuItem { Header = header, IsEnabled = enabled, IsChecked = isChecked, InputGestureText = Settings.Current.MacShortcuts ? MenuText.MacKeys(keys) : keys };
         mi.Click += (_, _) => action();
         return mi;
     }

@@ -70,7 +70,9 @@ public class Settings
     public string MenuBarMode(string module) =>
         MenuBarItems.TryGetValue(module, out var m) ? m : Array.Find(MenuBarModules, x => x.Name == module).Default ?? Hide;
     /// <summary>San Francisco can't be shipped; drop in any installed font family here.</summary>
-    public string FontFamily { get; set; } = "Segoe UI Variable Text, Segoe UI";
+    /// <summary>San Francisco is used when installed (Apple's free SF Pro download); otherwise Windows' own UI font.</summary>
+    public string FontFamily { get; set; } = DefaultFont;
+    public const string DefaultFont = "SF Pro Text, SF Pro, Segoe UI Variable Text, Segoe UI";
     public List<DockPin> Pinned { get; set; } = new()
     {
         FinderPin(),
@@ -98,6 +100,7 @@ public class Settings
             int i = Current.Pinned.FindIndex(p => p.Name == "File Explorer" && p.Exe == "explorer.exe");
             if (i >= 0 && !Current.Pinned.Any(p => p.Launch == "::finder")) Current.Pinned[i] = FinderPin();
             Sys.FixDownloadsPin(Current.Pinned);
+            if (Current.FontFamily == "Segoe UI Variable Text, Segoe UI") Current.FontFamily = DefaultFont; // the old default: pick up SF Pro
         }
         catch (Exception ex)
         {

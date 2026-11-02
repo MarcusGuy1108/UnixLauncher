@@ -63,6 +63,7 @@ folder option repairs its registry entry the next time the launcher starts.
 | ⌘Q / ⌘H / ⌘M / ⌘` | Alt+Q / H / M / ` | Quit the app / hide it / minimise / next window of the app |
 | ⌘← ⌘→ / ⌘↑ ⌘↓ / ⌘⌫ | Alt + arrows / Backspace | Line start / end, top / bottom, delete to line start (hold Shift to select) |
 | ⌘[ ⌘] | Alt+[ / Alt+] | Back / forward |
+| ⌥← ⌥→ / ⌥⌫ ⌥⌦ | Win + arrows / Backspace / Delete | Word left / right, delete a word (hold Shift to select). The Windows key sits where ⌥ is; Win+← / Win+→ don't snap windows while this is on |
 | ⌘⇧3 / ⌘⇧4 / ⌘⇧5 | Alt+Shift+3 / 4 / 5 | Whole-screen screenshot (saved to Pictures › Screenshots) / pick an area |
 | ⌘Space / ⌘Tab | Alt+Space / Alt+Tab | Spotlight / Windows' own app switcher, in the same place |
 
@@ -73,7 +74,9 @@ How it behaves:
 - **Alt combinations that aren't Mac shortcuts pass through unchanged:** Alt+Tab, Alt+F4, Alt+Enter (full screen in
   games and players), and Ctrl+Alt+anything.
 - **Only the left Alt is used.** Right Alt (AltGr) types characters on many layouts.
-- **Finder follows macOS Finder:** Return renames, ⌘↓ opens, ⌘⌫ trashes, ⌘⇧G goes to a folder, ⌘I gets info.
+- **Finder follows macOS Finder:** Return renames, ⌘↓ opens, ⌘⌫ trashes, ⌘⇧G goes to a folder, ⌘I gets info, ⌘⇧. shows hidden files, ⌘, opens Launcher Settings.
+- **Menus write shortcuts the macOS way** (⇧⌘N, ⌘⌫) while this is on.
+- **San Francisco font:** install SF Pro (free from developer.apple.com/fonts) and the launcher uses it automatically.
 
 **Gaming.** Whenever a full-screen game (exclusive or borderless) is in front, the launcher steps aside:
 

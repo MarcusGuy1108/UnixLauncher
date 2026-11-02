@@ -5,7 +5,7 @@
     <!-- macOS menus appear at once. WPF's fade would show the blurred, still-empty menu box first. -->
     <prim:PopupAnimation x:Key="{x:Static SystemParameters.MenuPopupAnimationKey}">None</prim:PopupAnimation>
 
-    <FontFamily x:Key="UiFont">Segoe UI Variable Text, Segoe UI</FontFamily>
+    <FontFamily x:Key="UiFont">SF Pro Text, Segoe UI Variable Text, Segoe UI</FontFamily>
     <FontFamily x:Key="GlyphFont">Segoe Fluent Icons, Segoe MDL2 Assets</FontFamily>
 
     <!-- Solid: without a real blur behind it, translucency just lets the content underneath bleed through. -->
@@ -189,6 +189,15 @@
                 </ControlTemplate>
             </Setter.Value>
         </Setter>
+    </Style>
+
+    <!-- macOS 26 sidebar in Finder and Settings: a lighter rounded card inset from the window edge, over the window's glass -->
+    <Style x:Key="SidebarCard" TargetType="Border">
+        <Setter Property="Margin" Value="6,6,0,6"/>
+        <Setter Property="CornerRadius" Value="12"/>
+        <Setter Property="Background" Value="#14FFFFFF"/>
+        <Setter Property="BorderBrush" Value="#1FFFFFFF"/>
+        <Setter Property="BorderThickness" Value="1"/>
     </Style>
 
     <!-- Content area of Finder and Settings (the sidebar shows the window's glass instead) -->

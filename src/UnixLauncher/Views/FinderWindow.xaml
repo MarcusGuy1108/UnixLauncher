@@ -29,6 +29,14 @@
                     <Setter TargetName="Box" Property="Background" Value="#33FFFFFF"/>
                     <Setter TargetName="LabelBg" Property="Background" Value="{StaticResource Accent}"/>
                 </DataTrigger>
+                <!-- macOS: selection turns grey while the window isn't the active one -->
+                <MultiDataTrigger>
+                    <MultiDataTrigger.Conditions>
+                        <Condition Binding="{Binding IsSelected, RelativeSource={RelativeSource AncestorType=ListBoxItem}}" Value="True"/>
+                        <Condition Binding="{Binding IsActive, RelativeSource={RelativeSource AncestorType=Window}}" Value="False"/>
+                    </MultiDataTrigger.Conditions>
+                    <Setter TargetName="LabelBg" Property="Background" Value="#464649"/>
+                </MultiDataTrigger>
             </DataTemplate.Triggers>
         </DataTemplate>
 
@@ -70,6 +78,13 @@
                             <Trigger Property="IsSelected" Value="True">
                                 <Setter TargetName="Bd" Property="Background" Value="{StaticResource Accent}"/>
                             </Trigger>
+                            <MultiDataTrigger>
+                                <MultiDataTrigger.Conditions>
+                                    <Condition Binding="{Binding IsSelected, RelativeSource={RelativeSource Self}}" Value="True"/>
+                                    <Condition Binding="{Binding IsActive, RelativeSource={RelativeSource AncestorType=Window}}" Value="False"/>
+                                </MultiDataTrigger.Conditions>
+                                <Setter TargetName="Bd" Property="Background" Value="#464649"/>
+                            </MultiDataTrigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
                 </Setter.Value>
@@ -117,9 +132,9 @@
             <ColumnDefinition/>
         </Grid.ColumnDefinitions>
 
-        <!-- Sidebar: transparent, so the window's glass (or panel colour) shows through; starts below the traffic lights -->
-        <Border Background="Transparent" MouseLeftButtonDown="DragArea_MouseDown">
-            <ScrollViewer VerticalScrollBarVisibility="Hidden" Margin="0,52,0,0">
+        <!-- macOS 26 sidebar: a rounded glass card floating inside the window, traffic lights inside it -->
+        <Border Style="{StaticResource SidebarCard}" MouseLeftButtonDown="DragArea_MouseDown">
+            <ScrollViewer VerticalScrollBarVisibility="Hidden" Margin="0,46,0,0">
                 <StackPanel x:Name="Sidebar" Margin="10,0,10,10"/>
             </ScrollViewer>
         </Border>

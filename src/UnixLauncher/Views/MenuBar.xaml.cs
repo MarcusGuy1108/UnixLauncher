@@ -318,7 +318,7 @@ public partial class MenuBar : Window
         var wins = RunningApps.Enumerate().Where(w => w.Key == key).ToList();
         var items = new System.Collections.Generic.List<MenuItem?>
         {
-            UI.Item("Minimise", () => Native.SysCommand(target, Native.SC_MINIMIZE)),
+            UI.Item("Minimise", () => Native.SysCommand(target, Native.SC_MINIMIZE), keys: UI.MacOnly("Alt+M")),
             UI.Item("Zoom", () => Native.SysCommand(target, Native.IsZoomed(target) ? Native.SC_RESTORE : Native.SC_MAXIMIZE)),
             null,
             UI.Item("Bring All to Front", () => { foreach (var w in Enumerable.Reverse(wins)) Native.Activate(w.Hwnd); }),
@@ -330,7 +330,7 @@ public partial class MenuBar : Window
             items.Add(UI.Item(w.Title.Length > 60 ? w.Title[..60] + "…" : w.Title, () => Native.Activate(h), isChecked: h == target));
         }
         items.Add(null);
-        items.Add(UI.Item("Close Window", () => Native.SysCommand(target, Native.SC_CLOSE)));
+        items.Add(UI.Item("Close Window", () => Native.SysCommand(target, Native.SC_CLOSE), keys: "Ctrl+W"));
         return UI.Menu(items.ToArray());
     }
 
@@ -394,7 +394,7 @@ public partial class MenuBar : Window
                 null,
                 UI.Item("Empty Recycle Bin…", Sys.EmptyTrash, enabled: Sys.TrashHasItems()),
                 null,
-                UI.Item("Hide Finder", () => { foreach (var f in FinderWindow.All) f.Minimise(); }),
+                UI.Item("Hide Finder", () => { foreach (var f in FinderWindow.All) f.Minimise(); }, keys: UI.MacOnly("Alt+H")),
                 UI.Item("Hide Others", () => HideOthers("")),
                 UI.Item("Show All", ShowAll)), AppBtn);
             return;
@@ -404,13 +404,13 @@ public partial class MenuBar : Window
         ShowBarMenu(UI.Menu(
             UI.Item($"About {name}", () => About(name, info.Exe!), enabled: hasExe),
             null,
-            UI.Item($"Hide {name}", () => HideApp(info.Key)),
+            UI.Item($"Hide {name}", () => HideApp(info.Key), keys: UI.MacOnly("Alt+H")),
             UI.Item("Hide Others", () => HideOthers(info.Key)),
             UI.Item("Show All", ShowAll),
             null,
             UI.Item("Show in Finder", () => Sys.ShowInFinder(info.Exe!), enabled: hasExe),
             null,
-            UI.Item($"Quit {name}", () => QuitApp(info.Key), keys: "Alt+F4")), AppBtn);
+            UI.Item($"Quit {name}", () => QuitApp(info.Key), keys: Settings.Current.MacShortcuts ? "Alt+Q" : "Alt+F4")), AppBtn);
     }
 
     static bool IsFrameHost(string exe) => exe.EndsWith("ApplicationFrameHost.exe", StringComparison.OrdinalIgnoreCase);
