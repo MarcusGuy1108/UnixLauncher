@@ -28,16 +28,7 @@ static class Backdrop
             if (!Native.BitBlt(mem, 0, 0, w, h, screen, r.Left, r.Top, 0x00CC0020)) return null; // SRCCOPY (no CAPTUREBLT: skips layered windows)
             Native.SelectObject(mem, old);
             old = IntPtr.Zero;
-            var full = Imaging.CreateBitmapSourceFromHBitmap(bmp, IntPtr.Zero, Int32Rect.Empty, BitmapSizeOptions.FromEmptyOptions());
-            var small = new FormatConvertedBitmap(new TransformedBitmap(full, new ScaleTransform(1.0 / Shrink, 1.0 / Shrink)), PixelFormats.Bgra32, null, 0);
-            int sw = small.PixelWidth, sh = small.PixelHeight, stride = sw * 4;
-            var px = new byte[stride * sh];
-            small.CopyPixels(px, stride, 0);
-            for (int i = 0; i < 3; i++) { BoxBlur(px, sw, sh, 3, true); BoxBlur(px, sw, sh, 3, false); } // three boxes ≈ a gaussian
-            Vibrancy(px, tint, amount);
-            var result = BitmapSource.Create(sw, sh, 96, 96, PixelFormats.Bgra32, null, px, stride);
-            result.Freeze();
-            return result;
+            return Blur(Imaging.CreateBitmapSourceFromHBitmap(bmp, IntPtr.Zero, Int32Rect.Empty, BitmapSizeOptions.FromEmptyOptions()), tint, amount);
         }
         catch (Exception ex) { App.Log(ex); return null; }
         finally
@@ -47,6 +38,40 @@ static class Backdrop
             Native.DeleteDC(mem);
             Native.ReleaseDC(IntPtr.Zero, screen);
         }
+    }
+
+    /// <summary>Any picture made into the same glass: blurred at a quarter size, colour-boosted, pulled toward the tint.</summary>
+    public static BitmapSource Blur(BitmapSource full, Color tint, double amount)
+    {
+        var small = new FormatConvertedBitmap(new TransformedBitmap(full, new ScaleTransform(1.0 / Shrink, 1.0 / Shrink)), PixelFormats.Bgra32, null, 0);
+        int sw = small.PixelWidth, sh = small.PixelHeight, stride = sw * 4;
+        var px = new byte[stride * sh];
+        small.CopyPixels(px, stride, 0);
+        for (int i = 0; i < 3; i++) { BoxBlur(px, sw, sh, 3, true); BoxBlur(px, sw, sh, 3, false); } // three boxes ≈ a gaussian
+        Vibrancy(px, tint, amount);
+        var result = BitmapSource.Create(sw, sh, 96, 96, PixelFormats.Bgra32, null, px, stride);
+        result.Freeze();
+        return result;
+    }
+
+    /// <summary>The desktop picture as glass (Mission Control): the wallpaper alone, without the windows on it.</summary>
+    public static ImageBrush? Wallpaper(Color tint, double amount)
+    {
+        // shortcut: one picture filling the screen; slideshows show the current one, Fit/Tile/Span layouts aren't copied.
+        string? path = Microsoft.Win32.Registry.GetValue(@"HKEY_CURRENT_USER\Control Panel\Desktop", "WallPaper", null) as string;
+        if (string.IsNullOrEmpty(path) || !System.IO.File.Exists(path))
+            path = System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), @"Microsoft\Windows\Themes\TranscodedWallpaper");
+        try
+        {
+            var img = new BitmapImage();
+            img.BeginInit();
+            img.UriSource = new Uri(path);
+            img.CacheOption = BitmapCacheOption.OnLoad; // don't keep the file open
+            img.DecodePixelWidth = 1600; // blurred anyway: no need for every pixel of a 4K picture
+            img.EndInit();
+            return new ImageBrush(Blur(img, tint, amount)) { Stretch = Stretch.UniformToFill };
+        }
+        catch (Exception ex) { App.Log(ex); return null; } // no wallpaper (solid colour) or unreadable
     }
 
     /// <summary>The same as a brush that fills its element (a Border clips it to its rounded corners).</summary>

@@ -60,7 +60,7 @@ sealed class MissionControl : Window
         _mon = mi.rcMonitor;
         _s = UI.Scale(this);
         Left = _mon.Left / _s; Top = _mon.Top / _s; Width = _mon.Width / _s; Height = _mon.Height / _s;
-        Background = (Brush?)Backdrop.Brush(_mon, Colors.Black, 0.35) ?? new SolidColorBrush(Color.FromRgb(0x1C, 0x1C, 0x1E));
+        Background = (Brush?)Backdrop.Wallpaper(Colors.Black, 0.35) ?? new SolidColorBrush(Color.FromRgb(0x1C, 0x1C, 0x1E)); // a screen copy would show the windows twice
 
         var wins = RunningApps.Enumerate().Select(w => w.Hwnd)
             .Concat(FinderWindow.All.Select(UI.Hwnd)) // Finder belongs to us, so the scan leaves it out
