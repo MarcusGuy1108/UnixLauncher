@@ -18,6 +18,8 @@
     <SolidColorBrush x:Key="CardBg" Color="#1FFFFFFF"/>
     <SolidColorBrush x:Key="HoverBg" Color="#26FFFFFF"/>
     <SolidColorBrush x:Key="Line" Color="#33FFFFFF"/>
+    <!-- The bright edge of macOS 27 glass (up here: the menu template below needs it as a StaticResource) -->
+    <SolidColorBrush x:Key="GlassRim" Color="#33FFFFFF"/>
     <SolidColorBrush x:Key="Text" Color="#F5F5F7"/>
     <SolidColorBrush x:Key="SubText" Color="#98989D"/>
     <SolidColorBrush x:Key="Accent" Color="#0A84FF"/>
@@ -87,7 +89,7 @@
                         <!-- Submenus (Options ›, Move & Resize ›) open beside the item, like macOS -->
                         <Popup x:Name="PART_Popup" IsOpen="{Binding IsSubmenuOpen, RelativeSource={RelativeSource TemplatedParent}}" Placement="Right"
                                HorizontalOffset="6" VerticalOffset="-6" AllowsTransparency="True" Focusable="False" PopupAnimation="None">
-                            <Border Background="{StaticResource PanelBg}" BorderBrush="{StaticResource Line}" BorderThickness="1" CornerRadius="14" Padding="5" MinWidth="180">
+                            <Border Background="{StaticResource MenuBg}" BorderBrush="{StaticResource GlassRim}" BorderThickness="1" CornerRadius="14" Padding="5" MinWidth="180">
                                 <ItemsPresenter/>
                             </Border>
                         </Popup>
@@ -216,8 +218,6 @@
 
     <!-- Tint of macOS 27 floating glass pieces (Notification Centre cards, Spotlight, Apps) over the blurred desktop -->
     <SolidColorBrush x:Key="FloatTint" Color="#4D262628"/>
-    <!-- The bright edge of macOS 27 glass -->
-    <SolidColorBrush x:Key="GlassRim" Color="#33FFFFFF"/>
 
     <!-- Content area of Finder and Settings (the sidebar shows the window's glass instead) -->
     <SolidColorBrush x:Key="ContentBg" Color="#1E1E1E"/>

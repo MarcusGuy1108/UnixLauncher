@@ -87,15 +87,17 @@ static class Backdrop
     /// <summary>macOS vibrancy: richer colour, then a pull toward the panel's tint so text stays readable.</summary>
     static void Vibrancy(byte[] px, Color tint, double amount)
     {
-        const double saturate = 1.35;
+        const double saturate = 1.35, maxLuma = 100; // bright wallpaper (sky, snow) gets darker, not greyer: white text stays readable
         for (int i = 0; i < px.Length; i += 4)
         {
             double b = px[i], g = px[i + 1], r = px[i + 2];
             double luma = 0.299 * r + 0.587 * g + 0.114 * b;
             r = luma + (r - luma) * saturate; g = luma + (g - luma) * saturate; b = luma + (b - luma) * saturate;
-            px[i] = (byte)Math.Clamp(b + (tint.B - b) * amount, 0, 255);
-            px[i + 1] = (byte)Math.Clamp(g + (tint.G - g) * amount, 0, 255);
-            px[i + 2] = (byte)Math.Clamp(r + (tint.R - r) * amount, 0, 255);
+            b += (tint.B - b) * amount; g += (tint.G - g) * amount; r += (tint.R - r) * amount;
+            double k = Math.Min(1, maxLuma / Math.Max(1, 0.299 * r + 0.587 * g + 0.114 * b));
+            px[i] = (byte)Math.Clamp(b * k, 0, 255);
+            px[i + 1] = (byte)Math.Clamp(g * k, 0, 255);
+            px[i + 2] = (byte)Math.Clamp(r * k, 0, 255);
             px[i + 3] = 255;
         }
     }

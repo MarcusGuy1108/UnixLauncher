@@ -46,7 +46,14 @@ public partial class App : Application
 
         Settings.Load();
         EventManager.RegisterClassHandler(typeof(System.Windows.Controls.ContextMenu), System.Windows.Controls.ContextMenu.OpenedEvent,
-            new RoutedEventHandler((s, _) => UI.GlassMenu((System.Windows.Controls.ContextMenu)s)));
+            new RoutedEventHandler((s, _) => { UI.GlassMenu((System.Windows.Controls.ContextMenu)s); UI.CloseOnOutsideClick((System.Windows.Controls.ContextMenu)s); }));
+        EventManager.RegisterClassHandler(typeof(System.Windows.Controls.MenuItem), System.Windows.Controls.MenuItem.SubmenuOpenedEvent,
+            new RoutedEventHandler((s, e) =>
+            {
+                if (e.OriginalSource != s || s is not System.Windows.Controls.MenuItem mi) return;
+                if (mi.Template.FindName("PART_Popup", mi) is System.Windows.Controls.Primitives.Popup { Child: System.Windows.Controls.Border panel })
+                    Dispatcher.BeginInvoke(() => UI.GlassPanel(panel), System.Windows.Threading.DispatcherPriority.Loaded); // once it has a size
+            }));
         Sys.RegisterUninstaller(); // keeps the Apps list entry pointing at wherever this copy now lives
         Views.NativeButtons.RestoreLeftovers(); // if the last run didn't exit cleanly, apps get their title bar buttons back
         Native.UseDarkMenus();

@@ -220,7 +220,36 @@ static class UI
     /// <summary>macOS menu glass: the blurred screen behind the menu, inside its rounded panel (see <see cref="Backdrop"/>).</summary>
     public static void GlassMenu(ContextMenu menu)
     {
-        if (VisualTreeHelper.GetChildrenCount(menu) == 0 || VisualTreeHelper.GetChild(menu, 0) is not Border panel || panel.ActualWidth == 0) return;
+        if (VisualTreeHelper.GetChildrenCount(menu) > 0 && VisualTreeHelper.GetChild(menu, 0) is Border panel) GlassPanel(panel);
+    }
+
+    /// <summary>
+    /// Close an open menu when a mouse button goes down anywhere outside the launcher. Our dock and bar never take the
+    /// foreground (the app keeps it, as on macOS), and without it a WPF menu can't hold the mouse, so outside clicks were missed.
+    /// shortcut: polled every 40 ms while a menu is open; Escape still goes to the app in front.
+    /// </summary>
+    public static void CloseOnOutsideClick(ContextMenu menu)
+    {
+        // Held now, or pressed since the last look (a quick click can fall between two ticks): left, right, middle.
+        static bool Pressed()
+        {
+            short l = Native.GetAsyncKeyState(0x01), r = Native.GetAsyncKeyState(0x02), m = Native.GetAsyncKeyState(0x04); // read all: each clears its bit
+            return ((l | r | m) & 0x8001) != 0;
+        }
+        Pressed(); // forget the click that opened the menu
+        var poll = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromMilliseconds(40) };
+        poll.Tick += (_, _) =>
+        {
+            if (!menu.IsOpen) { poll.Stop(); return; }
+            if (Pressed() && Native.GetCursorPos(out var p) && !RunningApps.IsOwn(Native.WindowFromPoint(p))) menu.IsOpen = false;
+        };
+        poll.Start();
+    }
+
+    /// <summary>The same glass for a submenu's panel (MenuItem's PART_Popup).</summary>
+    public static void GlassPanel(Border panel)
+    {
+        if (panel.ActualWidth == 0) return;
         if (Backdrop.Brush(Backdrop.ScreenRect(panel), Color.FromRgb(0x24, 0x24, 0x26), 0.5) is { } glass) panel.Background = glass;
     }
 

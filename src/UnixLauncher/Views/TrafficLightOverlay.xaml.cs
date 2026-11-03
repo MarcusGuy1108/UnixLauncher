@@ -176,9 +176,12 @@ public partial class TrafficLightOverlay : Window
     {
         var close = AutomationElement.FromPoint(new Point(r.Right - 20 * s, r.Top + 12 * s));
         Native.GetWindowThreadProcessId(h, out uint pid);
-        if (close == null || close.Current.ProcessId != pid || close.Current.ControlType != ControlType.Button) return null;
+        if (close == null || close.Current.ControlType != ControlType.Button) return null;
         var parent = TreeWalker.ControlViewWalker.GetParent(close);
         if (parent == null) return null;
+        // Settings' title bar reports process id 0; its window handle still leads back to the frame.
+        int nh = parent.Current.NativeWindowHandle;
+        if (close.Current.ProcessId != pid && (nh == 0 || Native.GetAncestor(new IntPtr(nh), 2) != h)) return null; // GA_ROOT
         var buttons = parent.FindAll(TreeScope.Children, new PropertyCondition(AutomationElement.ControlTypeProperty, ControlType.Button))
             .Cast<AutomationElement>().Select(e => e.Current.BoundingRectangle).Where(b => !b.IsEmpty)
             .OrderByDescending(b => b.Left).ToList();

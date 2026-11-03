@@ -182,6 +182,7 @@ public partial class MenuBar : Window
             return;
         }
         if (Native.IsShellWindow(fg)) { ShowFinder(null, IntPtr.Zero); return; } // on macOS the desktop belongs to Finder
+        if (!RunningApps.IsAppWindow(fg)) return; // hidden helpers (svchost's off-screen window after unlock), dialogs: keep the app
         if (fg == _target && !_finder && _ownApp == null) return;
         _finder = false;
         _ownApp = null;
