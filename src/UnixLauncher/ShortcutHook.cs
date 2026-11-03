@@ -55,7 +55,7 @@ static class ShortcutHook
             bool down = msg is 0x100 or 0x104, up = msg is 0x101 or 0x105; // WM_(SYS)KEYDOWN / UP
             if ((k.flags & 0x10) == 0 && (down || up)) // skip injected keys, including our own
             {
-                if (down && vk is WinKeyFilter.LWin or WinKeyFilter.RWin or MacKeyFilter.LAlt) DecideWhoseKeysTheseAre();
+                if (down && vk is WinKeyFilter.LWin or WinKeyFilter.RWin or MacKeyFilter.LAlt or 0xA2 or 0xA3) DecideWhoseKeysTheseAre(); // Ctrl too: ⌃↑
                 var r = Win.Handle(vk, down);
                 var m = Mac.Handle(vk, down);
                 if (r.InjectMask) // an unassigned key: Windows then won't treat the Win release as "open Start"
@@ -107,6 +107,7 @@ static class ShortcutHook
         {
             case "finder": FinderWindow.Open(); break;
             case "spotlight": App.Spotlight.Toggle(); break;
+            case "missioncontrol": MissionControl.Toggle(); break;
             case "controlcentre": App.ControlCentre.Toggle(); break;
             case "notifications": App.NotificationCentre.Toggle(); break;
             case "launchpad": App.Launchpad.Toggle(); break;

@@ -319,7 +319,9 @@ public partial class DockWindow : Window
             return;
         }
         // macOS: bring the app forward (never minimise it); minimised windows return only if nothing else is open.
-        Native.Activate((wins.FirstOrDefault(w => !Native.IsIconic(w.Hwnd)) ?? wins[0]).Hwnd);
+        var pick = (wins.FirstOrDefault(w => !Native.IsIconic(w.Hwnd)) ?? wins[0]).Hwnd;
+        if (Native.IsIconic(pick) && IconRect(pick) is { } from) WindowEffects.Restore(pick, from); // grows out of the icon, then appears
+        else Native.Activate(pick);
     }
 
     /// <summary>
@@ -491,18 +493,21 @@ public partial class DockWindow : Window
     {
         if (msg != _shellHookMsg || (wp.ToInt64() & 0x7FFF) != 5 || lp == IntPtr.Zero) return IntPtr.Zero; // HSHELL_GETMINRECT
         var info = Marshal.PtrToStructure<Native.SHELLHOOKINFO>(lp);
-        var w = RunningApps.Describe(info.hwnd);
+        if (IconRect(info.hwnd) is not { } rc) return IntPtr.Zero;
+        info.rc = rc;
+        Marshal.StructureToPtr(info, lp, false);
+        handled = true;
+        return new IntPtr(1);
+    }
+
+    /// <summary>Screen rectangle of the dock icon a window belongs to (where it minimises to), if the dock shows one.</summary>
+    internal Native.RECT? IconRect(IntPtr hwnd)
+    {
+        var w = RunningApps.Describe(hwnd);
         foreach (var (entry, slot) in _entrySlots)
-        {
-            if (!(entry.Pin != null ? Matches(entry.Pin, w) : entry.Key == w.Key) || !slot.IsVisible) continue;
-            var a = slot.PointToScreen(new Point(0, 0));
-            var b = slot.PointToScreen(new Point(slot.ActualWidth, slot.ActualHeight));
-            info.rc = new Native.RECT { Left = (int)a.X, Top = (int)a.Y, Right = (int)b.X, Bottom = (int)b.Y };
-            Marshal.StructureToPtr(info, lp, false);
-            handled = true;
-            return new IntPtr(1);
-        }
-        return IntPtr.Zero;
+            if ((entry.Pin != null ? Matches(entry.Pin, w) : entry.Key == w.Key) && slot.IsVisible)
+                return Backdrop.ScreenRect(slot);
+        return null;
     }
 
     // ---------- Drag & drop: reorder pins, pin running apps, drag pins off to remove, or drop files/folders/shortcuts to pin them ----------

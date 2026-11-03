@@ -70,6 +70,8 @@ static class WindowEvents
     public static event Action<IntPtr>? Foreground;
     /// <summary>The foreground window moved or resized.</summary>
     public static event Action<IntPtr>? Moved;
+    /// <summary>A window started minimising (EVENT_SYSTEM_MINIMIZESTART), with that window.</summary>
+    public static event Action<IntPtr>? Minimizing;
 
     static Native.WinEventProc? _proc; // keep the delegate alive: the hook calls it from native code
 
@@ -86,6 +88,10 @@ static class WindowEvents
         {
             if (idObject == 0 && hwnd == Native.GetForegroundWindow()) Moved?.Invoke(hwnd);
         }
-        else Foreground?.Invoke(Native.GetForegroundWindow());
+        else
+        {
+            if (evt == 0x0016 && idObject == 0) Minimizing?.Invoke(hwnd); // MINIMIZESTART, inside the hooked range
+            Foreground?.Invoke(Native.GetForegroundWindow());
+        }
     }
 }

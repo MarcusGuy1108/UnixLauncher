@@ -299,6 +299,7 @@ public sealed class MacKeyFilter
             case 0x5B or 0x5C: _win = down; return default;
         }
         if (!down) return new(_swallowed.Remove(vk), null, null);
+        if (vk == Up && _ctrl && !_alt && !_win && !_shift && Enabled) { _swallowed.Add(vk); return new(true, null, "missioncontrol"); } // ⌃↑
         if (!_alt || _altShown || _ctrl || _win) return default;
         if (Map(vk) is { } mac) { _swallowed.Add(vk); return mac; }
         // Not a Mac shortcut: let Windows see Alt after all, in front of this key.

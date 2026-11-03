@@ -292,6 +292,23 @@ public class MacKeyFilterTests
     }
 
     [Fact]
+    public void CtrlUpOpensMissionControl() // ⌃↑, as on a Mac
+    {
+        var f = On();
+        f.Handle(Ctrl, true);
+        Assert.Equal(new MacKeyFilter.Result(true, null, "missioncontrol"), f.Handle(0x26, true));
+        Assert.True(f.Handle(0x26, false).Swallow);
+    }
+
+    [Fact]
+    public void CtrlUpStaysWithAppsWhenMacShortcutsAreOff()
+    {
+        var f = new MacKeyFilter();
+        f.Handle(Ctrl, true);
+        Assert.Equal(default, f.Handle(0x26, true));
+    }
+
+    [Fact]
     public void LoneAltTapDoesNothing() => Assert.True(Tap(On()));
 
     static bool Tap(MacKeyFilter f) => f.Handle(Alt, true).Swallow && f.Handle(Alt, false).Swallow;

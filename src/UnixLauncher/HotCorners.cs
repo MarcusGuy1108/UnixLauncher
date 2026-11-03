@@ -30,7 +30,7 @@ static class HotCorners
     {
         switch (action)
         {
-            case "Mission Control": Native.PressKeys(0x5B, 0x09); break; // Win+Tab: Task View
+            case "Mission Control": Views.MissionControl.Toggle(); break;
             case "Desktop": Native.PressKeys(0x5B, 0x44); break;         // Win+D
             case "Launchpad": App.Launchpad.Toggle(); break;
             case "Notification Centre": App.NotificationCentre.Toggle(); break;

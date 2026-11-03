@@ -123,7 +123,9 @@ public partial class SettingsWindow : MacWindow
                 Row("Magnification", null, Switch(s.DockMagnify, v => Set(x => x.DockMagnify = v))),
                 Row("Magnification amount", null, SliderCtl(1.1, 2.5, s.DockMagnification, v => Set(x => x.DockMagnification = Math.Round(v, 2)))),
                 Row("Position on screen", null, Choice(new[] { "Left", "Bottom", "Right" }, s.DockPosition, v => Set(x => x.DockPosition = v))),
-                Row("Automatically hide and show the Dock", null, Switch(s.DockAutoHide, v => Set(x => x.DockAutoHide = v)))),
+                Row("Automatically hide and show the Dock", null, Switch(s.DockAutoHide, v => Set(x => x.DockAutoHide = v))),
+                Row("Minimise windows into application icon", "Windows shrink into their dock icon and grow back out when you click it. " +
+                    "Windows' own minimise animation is off while this is on.", Switch(s.MinimizeEffect, v => Set(x => x.MinimizeEffect = v)))),
             Group("Windows",
                 Row("Show red, yellow and green buttons on other apps' windows", "On the focused window's top-left corner. Where the app already has something there (a tab, its icon), they appear in a glass pill when you point at the corner.",
                     Switch(s.TrafficLightOverlay, v => Set(x => x.TrafficLightOverlay = v))),
@@ -160,6 +162,7 @@ public partial class SettingsWindow : MacWindow
                 "(Win+← and Win+→ no longer snap windows while this is on.)", null),
             Row("⌘⇧3  Screenshot · ⌘⇧4 / ⌘⇧5  Select an area", "Alt+Shift+3, 4, 5", null),
             Row("⌘Space  Spotlight · ⌘Tab  Switch apps", "Alt+Space and Alt+Tab (Windows' own app switcher)", null),
+            Row("⌃↑  Mission Control", "Ctrl+↑ (also a hot corner: Desktop & Dock › Hot Corners)", null),
             Row("Finder", "Return renames, ⌘↓ or ⌘O opens, ⌘⌫ moves to the Recycle Bin, ⌘⇧G goes to a folder, ⌘I gets info, " +
                 "⌘⇧H / ⌘⇧D / ⌘⇧C open Home / Desktop / This PC, ⌘⇧. shows hidden files.", null)),
     };

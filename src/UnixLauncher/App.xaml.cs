@@ -42,7 +42,7 @@ public partial class App : Application
 
         // A shell must not die on one bad handler: log and keep going.
         DispatcherUnhandledException += (_, ex) => { Log(ex.Exception); ex.Handled = true; };
-        AppDomain.CurrentDomain.UnhandledException += (_, ex) => { Log(ex.ExceptionObject); Sys.ShowTaskbar(); Views.NativeButtons.RestoreAll(); };
+        AppDomain.CurrentDomain.UnhandledException += (_, ex) => { Log(ex.ExceptionObject); Sys.ShowTaskbar(); Views.NativeButtons.RestoreAll(); WindowEffects.Stop(); };
 
         Settings.Load();
         EventManager.RegisterClassHandler(typeof(System.Windows.Controls.ContextMenu), System.Windows.Controls.ContextMenu.OpenedEvent,
@@ -69,6 +69,7 @@ public partial class App : Application
         _ = new TrafficLightOverlay();
         Bar.Show();
         Dock.Show();
+        WindowEffects.Start();
 
         Notifications.Start();
         Notifications.Arrived += n =>
@@ -99,6 +100,7 @@ public partial class App : Application
         WorkArea.ReleaseAll();
         Sys.ShowTaskbar();
         Views.NativeButtons.RestoreAll();
+        WindowEffects.Stop();
         base.OnExit(e);
     }
 

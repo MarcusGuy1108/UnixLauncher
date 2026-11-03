@@ -22,6 +22,8 @@ public class Settings
     public bool DockMagnify { get; set; } = true;
     public double DockMagnification { get; set; } = 1.7;
     public bool DockAutoHide { get; set; }
+    /// <summary>Windows shrink into their dock icon when minimised (and grow back out), instead of Windows' own animation.</summary>
+    public bool MinimizeEffect { get; set; } = true;
     public bool HideWindowsTaskbar { get; set; } = true;
     public bool TrafficLightOverlay { get; set; } = true;
     /// <summary>Cover Windows' own minimise/maximise/close buttons while the round ones are shown.</summary>
