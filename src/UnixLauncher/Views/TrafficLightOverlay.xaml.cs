@@ -7,6 +7,7 @@ using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Automation;
 using System.Windows.Controls;
+using System.Windows.Interop;
 using System.Windows.Media;
 using System.Windows.Threading;
 
@@ -47,12 +48,29 @@ public partial class TrafficLightOverlay : Window
         _hwnd = UI.Hwnd(this);
         Native.SetToolWindow(_hwnd, true);
 
+        // Not layered, so DWM can give it a Mica backdrop of its own: a screen copy can't see Mica (it reads a flat beige),
+        // but DWM draws Mica from the wallpaper at the window's spot, so the same backdrop there matches the app's title bar.
         _cover = new Window
         {
-            WindowStyle = WindowStyle.None, AllowsTransparency = true, Background = Brushes.Transparent, Topmost = true,
+            WindowStyle = WindowStyle.None, Background = Brushes.Transparent, Topmost = true,
             ShowInTaskbar = false, ShowActivated = false, ResizeMode = ResizeMode.NoResize, Width = 1, Height = 1, Content = _coverFill,
         };
-        Native.SetToolWindow(UI.Hwnd(_cover), true);
+        IntPtr ch = UI.Hwnd(_cover);
+        Native.SetToolWindow(ch, true);
+        var src = HwndSource.FromHwnd(ch);
+        src.CompositionTarget.BackgroundColor = Colors.Transparent;
+        var all = new Native.MARGINS { Left = -1, Right = -1, Top = -1, Bottom = -1 };
+        Native.DwmExtendFrameIntoClientArea(ch, ref all);
+        int square = 1, noRim = unchecked((int)0xFFFFFFFE); // DWMWCP_DONOTROUND, DWMWA_COLOR_NONE
+        Native.DwmSetWindowAttribute(ch, 33, ref square, sizeof(int)); // DWMWA_WINDOW_CORNER_PREFERENCE
+        Native.DwmSetWindowAttribute(ch, 34, ref noRim, sizeof(int));  // DWMWA_BORDER_COLOR
+        // Mica dims on inactive windows and the cover never activates: always draw it as active (it only shows over the active app).
+        src.AddHook((IntPtr h, int msg, IntPtr w, IntPtr l, ref bool handled) =>
+        {
+            if (msg != 0x0086) return IntPtr.Zero; // WM_NCACTIVATE
+            handled = true;
+            return Native.DefWindowProc(h, msg, new IntPtr(1), l);
+        });
         _cover.MouseLeftButtonDown += (_, e) => // it hides the buttons, never presses them: acts as plain title bar
         {
             IntPtr h = _coverKey.hwnd;
@@ -138,7 +156,7 @@ public partial class TrafficLightOverlay : Window
                     return;
                 }
                 _coverAt = found.at;
-                _coverFill.Background = new SolidColorBrush(found.colour);
+                MatchBackdrop(fg, found.colour);
                 PlaceCover(Native.GetForegroundWindow());
             }));
             return;
@@ -147,8 +165,22 @@ public partial class TrafficLightOverlay : Window
         var b = new Native.RECT { Left = r.Right - a.fromRight, Top = r.Top + a.fromTop };
         b.Right = b.Left + a.w; b.Bottom = b.Top + a.h;
         if (Covered(fg, b)) { _cover.Hide(); return; }
-        if (!_cover.IsVisible) _cover.Show();
+        if (!_cover.IsVisible) { _cover.Show(); Native.SendMessage(UI.Hwnd(_cover), 0x0086, new IntPtr(1), IntPtr.Zero); } // active Mica
         Native.SetWindowPos(UI.Hwnd(_cover), Native.HWND_TOPMOST, b.Left, b.Top, a.w, a.h, Native.SWP_NOACTIVATE | Native.SWP_SHOWWINDOW);
+    }
+
+    /// <summary>The app's Mica / tabbed backdrop (DWMWA_SYSTEMBACKDROP_TYPE 2-4) if it has one, else the sampled colour.</summary>
+    void MatchBackdrop(IntPtr app, Color colour)
+    {
+        IntPtr ch = UI.Hwnd(_cover);
+        bool system = Native.DwmGetWindowAttribute(app, 38, out int type, sizeof(int)) == 0 && type >= 2;
+        // WinUI / UWP apps (Settings) draw Mica themselves and tell DWM "none", but it is the same Mica.
+        if (!system && Native.GetClass(app) is "ApplicationFrameWindow" or "WinUIDesktopWin32WindowClass") (system, type) = (true, 2);
+        if (!system) type = 1; // DWMSBT_NONE
+        Native.DwmSetWindowAttribute(ch, 38, ref type, sizeof(int));
+        if (Native.DwmGetWindowAttribute(app, 20, out int dark, sizeof(int)) == 0) // DWMWA_USE_IMMERSIVE_DARK_MODE: light or dark Mica
+            Native.DwmSetWindowAttribute(ch, 20, ref dark, sizeof(int));
+        _coverFill.Background = system ? Brushes.Transparent : new SolidColorBrush(colour);
     }
 
     /// <summary>
