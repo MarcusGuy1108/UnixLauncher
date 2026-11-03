@@ -11,7 +11,7 @@
                 <TranslateTransform x:Name="Slide"/>
             </Grid.RenderTransform>
             <!-- macOS 26 Liquid Glass shelf: soft tint and a bright rim; corner radius follows the dock size (see Layout) -->
-            <Border x:Name="ShelfBg" Background="#B8282A2E" BorderBrush="#59FFFFFF" BorderThickness="1"/>
+            <Border x:Name="ShelfBg" Background="#B8282A2E" BorderBrush="{StaticResource GlassRim}" BorderThickness="1"/>
             <StackPanel x:Name="Items"/>
         </Grid>
     </Grid>
