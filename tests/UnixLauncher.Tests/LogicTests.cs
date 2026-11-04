@@ -305,16 +305,39 @@ public class MacKeyFilterTests
     }
 
     [Fact]
-    public void AltTabStillWorks() // not a Mac shortcut: Alt is replayed in front of Tab
+    public void AltTabIsTheMacAppSwitcher() // ⌘Tab: Windows never sees it; letting go of ⌘ picks the app
     {
         var f = On();
         f.Handle(Alt, true);
-        var r = f.Handle(Tab, true);
-        Assert.True(r.Swallow);
-        Assert.Equal(new[] { D(Alt), D(Tab) }, r.Send);
-        Assert.False(f.Handle(Tab, false).Swallow);
-        Assert.False(f.Handle(Tab, true).Swallow);    // further Tabs while held pass straight through
-        Assert.False(f.Handle(Alt, false).Swallow);   // Windows saw the press, so it sees the release
+        Assert.Equal(new MacKeyFilter.Result(true, null, "switcher-next"), f.Handle(Tab, true));
+        Assert.True(f.Handle(Tab, false).Swallow);
+        Assert.Equal("switcher-next", f.Handle(Tab, true).Action);
+        f.Handle(Shift, true);
+        Assert.Equal("switcher-prev", f.Handle(Tab, true).Action);
+        f.Handle(Shift, false);
+        Assert.Equal("switcher-next", f.Handle(0x27, true).Action); // →
+        Assert.Null(f.Handle(C, true).Action);                     // other keys do nothing while it's up
+        Assert.Equal(new MacKeyFilter.Result(true, null, "switcher-done"), f.Handle(Alt, false));
+        f.Handle(Alt, true);
+        Assert.Equal(new[] { D(Ctrl), D(C), U(C), U(Ctrl) }, f.Handle(C, true).Send); // ⌘C works again afterwards
+    }
+
+    [Fact]
+    public void EscClosesTheSwitcherWithoutSwitching()
+    {
+        var f = On();
+        f.Handle(Alt, true);
+        f.Handle(Tab, true);
+        Assert.Equal("switcher-cancel", f.Handle(0x1B, true).Action);
+        Assert.Null(f.Handle(Alt, false).Action);
+    }
+
+    [Fact]
+    public void AltTabIsWindowsOwnWithMacShortcutsOff()
+    {
+        var f = new MacKeyFilter();
+        Assert.False(f.Handle(Alt, true).Swallow);
+        Assert.Equal(default, f.Handle(Tab, true));
     }
 
     [Fact]

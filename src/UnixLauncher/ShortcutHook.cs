@@ -108,6 +108,10 @@ static class ShortcutHook
             case "finder": FinderWindow.Open(); break;
             case "spotlight": App.Spotlight.Toggle(); break;
             case "missioncontrol": MissionControl.Toggle(); break;
+            case "switcher-next": AppSwitcher.Step(1); break;
+            case "switcher-prev": AppSwitcher.Step(-1); break;
+            case "switcher-done": AppSwitcher.Done(); break;
+            case "switcher-cancel": AppSwitcher.Cancel(); break;
             case "controlcentre": App.ControlCentre.Toggle(); break;
             case "notifications": App.NotificationCentre.Toggle(); break;
             case "launchpad": App.Launchpad.Toggle(); break;

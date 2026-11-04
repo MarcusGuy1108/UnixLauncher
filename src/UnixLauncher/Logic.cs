@@ -289,7 +289,7 @@ public sealed class MacKeyFilter
 {
     public const int LAlt = 0xA4; // left Alt only: right Alt is AltGr on many layouts and types characters
     const int Shift = 0xA0, Ctrl = 0xA2, LWin = 0x5B, Home = 0x24, End = 0x23, Left = 0x25, Up = 0x26, Right = 0x27, Down = 0x28,
-              Back = 0x08, Snapshot = 0x2C; // Alt+Enter is left alone: it's full screen in games and video players
+              Back = 0x08, Snapshot = 0x2C, Tab = 0x09, Esc = 0x1B; // Alt+Enter is left alone: it's full screen in games and video players
 
     public readonly record struct Key(int Vk, bool Up);
     /// <summary>Swallow the real key event; Send = keys to inject instead; Action = something to do ("quit", "hide"…).</summary>
@@ -299,6 +299,7 @@ public sealed class MacKeyFilter
     public bool Enabled { get; set; }
 
     bool _alt, _altShown, _shift, _ctrl, _win;
+    bool _switching; // ⌘Tab app switcher is up: it takes the keys until ⌘ is let go
     readonly HashSet<int> _swallowed = new();
 
     public Result Handle(int vk, bool down)
@@ -311,7 +312,11 @@ public sealed class MacKeyFilter
                     _alt = true;
                     _altShown = !Enabled || _ctrl || _win; // Ctrl+Alt+…, Win+Alt+… stay Windows shortcuts
                 }
-                else if (!down) _alt = false;
+                else if (!down)
+                {
+                    _alt = false;
+                    if (_switching) { _switching = false; return new(true, null, "switcher-done"); } // let go of ⌘: switch
+                }
                 return new(!_altShown, null, null); // an Alt Windows never saw: hide its release too (so no menu-bar focus)
             case 0x10 or 0xA0 or 0xA1: _shift = down; return default;
             case 0x11 or 0xA2 or 0xA3: _ctrl = down; return default;
@@ -320,6 +325,13 @@ public sealed class MacKeyFilter
         if (!down) return new(_swallowed.Remove(vk), null, null);
         if (vk == Up && _ctrl && !_alt && !_win && !_shift && Enabled) { _swallowed.Add(vk); return new(true, null, "missioncontrol"); } // ⌃↑
         if (!_alt || _altShown || _ctrl || _win) return default;
+        if (vk == Tab || _switching) // ⌘Tab / ⌘⇧Tab step through apps; ← → too, Esc closes the switcher
+        {
+            _swallowed.Add(vk);
+            string? step = vk switch { Tab => _shift ? "switcher-prev" : "switcher-next", Left => "switcher-prev", Right => "switcher-next", Esc => "switcher-cancel", _ => null };
+            _switching = step != null ? step != "switcher-cancel" : _switching;
+            return new(true, null, step);
+        }
         if (Map(vk) is { } mac) { _swallowed.Add(vk); return mac; }
         // Not a Mac shortcut: let Windows see Alt after all, in front of this key.
         _altShown = true;

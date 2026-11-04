@@ -66,15 +66,16 @@ folder option repairs its registry entry the next time the launcher starts.
 | ⌘[ ⌘] | Alt+[ / Alt+] | Back / forward |
 | ⌥← ⌥→ / ⌥⌫ ⌥⌦ | Win + arrows / Backspace / Delete | Word left / right, delete a word (hold Shift to select). The Windows key sits where ⌥ is; Win+← / Win+→ don't snap windows while this is on |
 | ⌘⇧3 / ⌘⇧4 / ⌘⇧5 | Alt+Shift+3 / 4 / 5 | Whole-screen screenshot (saved to Pictures › Screenshots) / pick an area |
-| ⌘Space / ⌘Tab | Alt+Space / Alt+Tab | Spotlight / Windows' own app switcher, in the same place |
+| ⌘Space | Alt+Space | Spotlight |
+| ⌘Tab / ⌘⇧Tab | Alt+Tab / Alt+Shift+Tab | The macOS app switcher: one icon per app, most recent first; ← → move too, Esc closes it, letting go of Alt switches. A quick tap goes straight back to the previous app |
 | ⌃↑ | Ctrl+↑ | Mission Control: every window as a live preview |
 
 How it behaves:
 
 - **Ctrl still works**, so Windows habits keep working too.
 - **A tap of Alt on its own does nothing**, as with ⌘.
-- **Alt combinations that aren't Mac shortcuts pass through unchanged:** Alt+Tab, Alt+F4, Alt+Enter (full screen in
-  games and players), and Ctrl+Alt+anything.
+- **Alt combinations that aren't Mac shortcuts pass through unchanged:** Alt+F4, Alt+Enter (full screen in games and
+  players), and Ctrl+Alt+anything. With this off, Alt+Tab is Windows' own switcher.
 - **Only the left Alt is used.** Right Alt (AltGr) types characters on many layouts.
 - **Finder follows macOS Finder:** Return renames, ⌘↓ opens, ⌘⌫ trashes, ⌘⇧G goes to a folder, ⌘I gets info, ⌘⇧. shows hidden files, ⌘, opens Launcher Settings.
 - **Menus write shortcuts the macOS way** (⇧⌘N, ⌘⌫) while this is on.
