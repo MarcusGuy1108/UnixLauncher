@@ -259,6 +259,32 @@ public class WinKeyFilterGameTests
     }
 }
 
+public class DockPinMigrationTests
+{
+    [Fact]
+    public void OldDefaultsBecomeFinderAndAppsButTheUsersPinsStay()
+    {
+        var pins = new List<DockPin>
+        {
+            new() { Name = "File Explorer", Launch = "explorer.exe", Exe = "explorer.exe" },
+            new() { Name = "Launchpad", Launch = "::launchpad" },
+            new() { Name = "Steam", Launch = @"C:\Steam\steam.exe", Exe = "steam.exe" },
+        };
+        DockPin.Migrate(pins);
+        Assert.Equal(new[] { "Finder", "Apps", "Steam" }, pins.Select(p => p.Name));
+        Assert.Equal("::finder", pins[0].Launch);
+        Assert.Equal(@"C:\Steam\steam.exe", pins[2].Launch);
+    }
+
+    [Fact]
+    public void FileExplorerStaysWhenFinderIsAlreadyPinned() // the user pinned Explorer on purpose
+    {
+        var pins = new List<DockPin> { DockPin.Finder(), new() { Name = "File Explorer", Launch = "explorer.exe", Exe = "explorer.exe" } };
+        DockPin.Migrate(pins);
+        Assert.Equal(new[] { "Finder", "File Explorer" }, pins.Select(p => p.Name));
+    }
+}
+
 public class MacKeyFilterTests
 {
     const int Alt = MacKeyFilter.LAlt, C = 'C', Q = 'Q', Tab = 0x09, Shift = 0xA0, Ctrl = 0xA2, Left = 0x25, Z = 'Z';

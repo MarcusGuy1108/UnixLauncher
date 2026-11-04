@@ -10,6 +10,25 @@ namespace UnixLauncher;
 
 // Pure logic with no WPF/Win32 dependencies, so it is unit-tested on any OS.
 
+public class DockPin
+{
+    public string Name { get; set; } = "";
+    /// <summary>What gets ShellExecuted: a path, a folder, a URI, or shell:AppsFolder\&lt;AUMID&gt;. "::launchpad" is built in.</summary>
+    public string Launch { get; set; } = "";
+    public string? Exe { get; set; }
+    public string? Aumid { get; set; }
+
+    public static DockPin Finder() => new() { Name = "Finder", Launch = "::finder" };
+
+    /// <summary>Pins saved by earlier versions: the default File Explorer pin becomes Finder, Launchpad is now Apps. The user's own pins stay.</summary>
+    public static void Migrate(List<DockPin> pins)
+    {
+        int i = pins.FindIndex(p => p.Name == "File Explorer" && p.Exe == "explorer.exe");
+        if (i >= 0 && !pins.Any(p => p.Launch == "::finder")) pins[i] = Finder();
+        foreach (var p in pins) if (p.Launch == "::launchpad" && p.Name == "Launchpad") p.Name = "Apps";
+    }
+}
+
 public static class DockMath
 {
     /// <summary>

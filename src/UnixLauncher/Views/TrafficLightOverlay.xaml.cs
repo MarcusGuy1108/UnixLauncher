@@ -340,26 +340,14 @@ public partial class TrafficLightOverlay : Window
     static bool CornerBusy(Native.RECT area, double scale)
     {
         int w = area.Right - area.Left, h = area.Bottom - area.Top;
-        IntPtr screen = Native.GetDC(IntPtr.Zero), mem = Native.CreateCompatibleDC(screen), bmp = Native.CreateCompatibleBitmap(screen, w, h);
-        IntPtr old = Native.SelectObject(mem, bmp);
-        try
-        {
-            if (!Native.BitBlt(mem, 0, 0, w, h, screen, area.Left, area.Top, 0x00CC0020)) return false; // SRCCOPY; unreadable: assume empty
-            // Skip the window's rounded corner (the wallpaper shows there) and the very edges.
-            int x0 = (int)(8 * scale), y0 = (int)(5 * scale), x1 = w - (int)(3 * scale), y1 = h - (int)(3 * scale), step = Math.Max(1, (int)scale);
-            uint first = Native.GetPixel(mem, x0, y0);
-            for (int y = y0; y < y1; y += step)
-                for (int x = x0; x < x1; x += step)
-                    if (Diff(Native.GetPixel(mem, x, y), first) > 24) return true;
-            return false;
-        }
-        finally
-        {
-            Native.SelectObject(mem, old);
-            Native.DeleteObject(bmp);
-            Native.DeleteDC(mem);
-            Native.ReleaseDC(IntPtr.Zero, screen);
-        }
+        if (Pixels(area.Left, area.Top, w, h) is not { } px) return false; // unreadable: assume empty
+        // Skip the window's rounded corner (the wallpaper shows there) and the very edges.
+        int x0 = (int)(8 * scale), y0 = (int)(5 * scale), x1 = w - (int)(3 * scale), y1 = h - (int)(3 * scale), step = Math.Max(1, (int)scale);
+        uint first = px[y0 * w + x0];
+        for (int y = y0; y < y1; y += step)
+            for (int x = x0; x < x1; x += step)
+                if (Diff(px[y * w + x], first) > 24) return true;
+        return false;
     }
 
     static int Diff(uint a, uint b) =>
@@ -387,9 +375,7 @@ public partial class TrafficLightOverlay : Window
         bool normal = (style & Native.WS_CAPTION) == Native.WS_CAPTION || (IsChromium(h) && (style & Native.WS_MINIMIZEBOX) != 0);
         if (!normal || (Native.ExStyle(h) & Native.WS_EX_TOOLWINDOW) != 0) return false;
         if (Native.IsShellWindow(h) || Native.IsCloaked(h) || RunningApps.IsOwn(h) || Native.IsFullscreen(h)) return false;
-        Native.GetWindowThreadProcessId(h, out uint pid);
-        var exe = Path.GetFileName(Native.GetProcessPath(pid) ?? "");
-        return !Settings.Current.OverlayExclude.Any(x => string.Equals(x, exe, StringComparison.OrdinalIgnoreCase));
+        return !ShortcutHook.IsExcluded(h); // the same exclude list, and no process lookup when it's empty
     }
 
     void Close_Click(object sender, RoutedEventArgs e) => Native.PostMessage(_target, Native.WM_CLOSE, IntPtr.Zero, IntPtr.Zero); // works without a system menu too
@@ -432,7 +418,9 @@ static class NativeButtons
         try
         {
             if (!File.Exists(StateFile)) return;
-            foreach (var line in File.ReadAllLines(StateFile))
+            // Window handles don't survive a restart (another window may have that number now): only restore this boot's.
+            bool sameBoot = File.GetLastWriteTime(StateFile) > DateTime.Now - TimeSpan.FromMilliseconds(Environment.TickCount64);
+            if (sameBoot) foreach (var line in File.ReadAllLines(StateFile))
                 if (long.TryParse(line, out long v)) Restore(new IntPtr(v));
             File.Delete(StateFile);
         }

@@ -6,15 +6,6 @@ using System.Text.Json;
 
 namespace UnixLauncher;
 
-public class DockPin
-{
-    public string Name { get; set; } = "";
-    /// <summary>What gets ShellExecuted: a path, a folder, a URI, or shell:AppsFolder\&lt;AUMID&gt;. "::launchpad" is built in.</summary>
-    public string Launch { get; set; } = "";
-    public string? Exe { get; set; }
-    public string? Aumid { get; set; }
-}
-
 public class Settings
 {
     public string DockPosition { get; set; } = "Bottom"; // Bottom | Left | Right
@@ -71,20 +62,17 @@ public class Settings
 
     public string MenuBarMode(string module) =>
         MenuBarItems.TryGetValue(module, out var m) ? m : Array.Find(MenuBarModules, x => x.Name == module).Default ?? Hide;
-    /// <summary>San Francisco can't be shipped; drop in any installed font family here.</summary>
     /// <summary>San Francisco is used when installed (Apple's free SF Pro download); otherwise Windows' own UI font.</summary>
     public string FontFamily { get; set; } = DefaultFont;
     public const string DefaultFont = "SF Pro Text, SF Pro, Segoe UI Variable Text, Segoe UI";
     public List<DockPin> Pinned { get; set; } = new()
     {
-        FinderPin(),
+        DockPin.Finder(),
         new() { Name = "Apps", Launch = "::launchpad" }, // macOS 26 renamed Launchpad to Apps
         new() { Name = "Settings", Launch = @"shell:AppsFolder\windows.immersivecontrolpanel_cw5n1h2txyewy!microsoft.windows.immersivecontrolpanel",
                 Aumid = "windows.immersivecontrolpanel_cw5n1h2txyewy!microsoft.windows.immersivecontrolpanel" },
         new() { Name = "Downloads", Launch = Sys.Downloads },
     };
-
-    static DockPin FinderPin() => new() { Name = "Finder", Launch = "::finder" };
 
     public static readonly string Dir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "UnixLauncher");
     static readonly string FilePath = Path.Combine(Dir, "settings.json");
@@ -98,16 +86,17 @@ public class Settings
         try
         {
             if (File.Exists(FilePath)) Current = JsonSerializer.Deserialize<Settings>(File.ReadAllText(FilePath)) ?? new();
-            // Earlier versions pinned File Explorer by default; Finder takes that place. Pins the user made stay.
-            int i = Current.Pinned.FindIndex(p => p.Name == "File Explorer" && p.Exe == "explorer.exe");
-            if (i >= 0 && !Current.Pinned.Any(p => p.Launch == "::finder")) Current.Pinned[i] = FinderPin();
+            // A hand-edited "Pinned": null loads fine and breaks the dock later: treat it as a broken file.
+            if (Current.Pinned == null || Current.HotCorners == null || Current.MenuBarItems == null || Current.OverlayExclude == null || Current.FontFamily == null)
+                throw new JsonException("settings.json has an empty (null) list or value");
+            DockPin.Migrate(Current.Pinned);
             Sys.FixDownloadsPin(Current.Pinned);
-            foreach (var p in Current.Pinned) if (p.Launch == "::launchpad" && p.Name == "Launchpad") p.Name = "Apps";
             if (Current.FontFamily == "Segoe UI Variable Text, Segoe UI") Current.FontFamily = DefaultFont; // the old default: pick up SF Pro
         }
         catch (Exception ex)
         {
             App.Log(ex);
+            Current = new(); // a half-loaded file is worse than none
             try { File.Copy(FilePath, FilePath + ".bad", true); } catch { } // keep the broken file for the user, start fresh
         }
     }

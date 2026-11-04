@@ -234,7 +234,7 @@ static class UI
         static bool Pressed()
         {
             short l = Native.GetAsyncKeyState(0x01), r = Native.GetAsyncKeyState(0x02), m = Native.GetAsyncKeyState(0x04); // read all: each clears its bit
-            return ((l | r | m) & 0x8001) != 0;
+            return (l & 0x8001) != 0 || (r & 0x8001) != 0 || (m & 0x8001) != 0;
         }
         Pressed(); // forget the click that opened the menu
         var poll = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromMilliseconds(40) };

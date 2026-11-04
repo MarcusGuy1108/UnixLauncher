@@ -152,7 +152,9 @@ public partial class App : Application
         try
         {
             Directory.CreateDirectory(Settings.Dir);
-            File.AppendAllText(Path.Combine(Settings.Dir, "error.log"), $"[{DateTime.Now:u}] {error}\n\n");
+            string log = Path.Combine(Settings.Dir, "error.log");
+            if (File.Exists(log) && new FileInfo(log).Length > 1_000_000) File.Delete(log); // a bug on a timer must not fill the disk
+            File.AppendAllText(log, $"[{DateTime.Now:u}] {error}\n\n");
         }
         catch { /* logging must never throw */ }
     }
